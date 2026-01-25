@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+*.log
+
+# Output directory
+dist/
+dist-ssr/
+
+# Environment files
+.env
+.env.*.local
+
+# IDE/OS-specific files
+.idea/
+.vscode/
+.DS_Store
+*.suo
+*.user
+*.usercode
+*.usersettings
+*.vscode-test/
+
+# Vite-specific
+.vite/
+stats.html 
