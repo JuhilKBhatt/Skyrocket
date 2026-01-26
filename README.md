@@ -2,22 +2,22 @@
 
 ---
 
-# 1 - Bot Design
+# 1.0 - Bot Design
 
 ## 1.1 - Description
 
-A Voting Based Quant Algorithm Based Trading Bot. There are 3 Quant Algorithm, 1 AI News bot and 1 LLM. They vote on either Buy/Sell/Hold.
+A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strategies, one AI-driven news sentiment model, and one general LLM reasoning layer independently vote on Buy / Sell / Hold decisions
 
 ## 1.2 - Tech Stack
 
 ### 1.2.1 - Frontend (React+Vite)
 
 * Antdesign Bootstrap
-* Only to Edit Vars
+* Configuration only UI (risk limits, toggles, thresholds). No trading logic
 
 ### 1.2.2 - Backend (Python)
 
-* Runs Algo Models
+* Runs Algorithm Models ( Momentum, Mean Reversion, Volatility Breakout )
 * Talks to API
 * Talk to Frontend
 
@@ -41,7 +41,7 @@ A Voting Based Quant Algorithm Based Trading Bot. There are 3 Quant Algorithm, 1
 * **IF FAIL:** **→** **( End Operations: Send Email at Error )**
 * **IF SUCCESS:** **→** **Proceed to Step 2.**
 
-**2. DECISION: US Market Open?**
+**2. DECISION: US Market Open Or Closing Hour?**
 
 * **IF NO:** **→** Loop back to **Data Integrity Check** .
 * **IF YES:** **→** **Proceed to Step 3** (Pass list of companies & trade details).
@@ -83,13 +83,21 @@ A Voting Based Quant Algorithm Based Trading Bot. There are 3 Quant Algorithm, 1
 * **Action:** Execute via API.
 * **→** **Proceed to Step 9.**
 
-**9. PROCESS: Trade Monitoring**
+**9. PROCESS: Dual Thread Monitoring**
 
-* **Checks:** Price, Regime Change, Revote?
-* **PATH A (If BUY / HOLD):** **→** **Cycle every 5 seconds** **→** Loop back to **Step 4 (Model Regime Detection)** .
-* **PATH B (If SELL):** **→** **Proceed to Step 10.**
+* **Thread A (Fast - Every 1s):** Check Price vs. Stop Loss / Take Profit.
+
+  * *If Stop Hit:* **→** Trigger SELL immediately (Skip to Step 10).
+* **Thread B (Slow - Every 1m):** Check Regime Change & Sentiment.
+
+  * *Loop back to Step 4:* Verify if the original thesis (Regime) is still valid.
+  * *If Invalid:* **→** Trigger Exit.
 
 **10. PROCESS: Attribution Analysis & Model Refine**
 
 * **Analysis:** Meet Target? Entry/Exit Profit? Model/Vote Success/Fine/Fail? Slippage?
 * **→** **Big Loop Back to Step 1 (Data Integrity Check).**
+
+# 2.0 - How to Run
+
+## 2.1 - Setup Environment
