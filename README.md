@@ -101,3 +101,13 @@ A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strateg
 # 2.0 - How to Run
 
 ## 2.1 - Setup Environment
+
+## 2.2 - Deployment
+
+### 2.2.1 - Development
+
+### 2.2.2 - Production
+
+### 2.2.3 - Database Management
+
+# 3.0 - Maintenance & Troubleshooting Commands
