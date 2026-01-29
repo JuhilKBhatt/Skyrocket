@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    environment:
+      - POSTGXRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_db=skyrocket_dev
+    ports:
+      - "5433:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skyrocket_dev
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data_dev:

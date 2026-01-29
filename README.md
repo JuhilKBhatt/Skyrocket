@@ -102,11 +102,48 @@ A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strateg
 
 ## 2.1 - Setup Environment
 
+### 2.1.1 - Create .env file at root (For Prod)
+
+```
+# .env
+POSTGRES_USER=admin
+POSTGRES_PASSWORD=secretpassword
+POSTGRES_DB=skyrocket_prod
+ALPACA_API_KEY=your_key_here
+ALPACA_SECRET_KEY=your_secret_here
+```
+
 ## 2.2 - Deployment
 
 ### 2.2.1 - Development
 
+Run:
+
+```
+docker-compose -f docker-compose.dev.yml down
+
+docker-compose -f docker-compose.dev.yml up --build -d
+```
+
+Access:
+
+* Frontend: `http://localhost:5173`
+* Backend API Docs: `http://localhost:8000/docs`
+* Database: `localhost:5432`
+
 ### 2.2.2 - Production
+
+Run:
+
+```
+docker-compose -f docker-compose.prod.yml down
+
+docker-compose -f docker-compose.prod.yml up --build -d
+```
+
+Access:
+
+* Application: `http://localhost:759758`
 
 ### 2.2.3 - Database Management
 
