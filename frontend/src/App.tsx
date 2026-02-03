@@ -1,44 +1,67 @@
 // frontend/src/App.tsx
-import { useState } from 'react'
-import { Layout, Button, Card, Typography } from 'antd'
-import './App.css'
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Layout, Typography, Button } from 'antd';
+import { SettingOutlined, HomeOutlined } from '@ant-design/icons';
+import { Dashboard } from './pages/Dashboard';
+import { SettingsPage } from './pages/SettingsPage';
+import './App.css';
 
 const { Header, Content, Footer } = Layout;
-const { Title, Paragraph } = Typography;
+const { Title } = Typography;
 
-function App() {
-  const [count, setCount] = useState(0)
+// Helper component to conditionally render the correct header button
+const HeaderActions = () => {
+  const location = useLocation();
+  const isSettings = location.pathname === '/settings';
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
-      <Header style={{ display: 'flex', alignItems: 'center', background: '#1a1a1a', padding: '0 20px' }}>
-        <Title level={3} style={{ margin: 0, color: 'white' }}>Skyrocket 🚀</Title>
-      </Header>
-      
-      <Content style={{ padding: '50px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <Card title="Control Panel" style={{ width: 400 }}>
-          <div style={{ textAlign: 'center' }}>
-            <Paragraph>
-              Current Count: <strong>{count}</strong>
-            </Paragraph>
-            
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <Button type="primary" onClick={() => setCount((c) => c + 1)}>
-                Increase
-              </Button>
-              <Button danger onClick={() => setCount(0)}>
-                Reset tr
-              </Button>
-            </div>
-          </div>
-        </Card>
-      </Content>
+    <div>
+      {isSettings ? (
+        <Link to="/">
+          <Button type="text" icon={<HomeOutlined />} style={{ color: 'white' }}>
+            Dashboard
+          </Button>
+        </Link>
+      ) : (
+        <Link to="/settings">
+          <Button type="text" icon={<SettingOutlined style={{ fontSize: '20px' }} />} style={{ color: 'white' }} />
+        </Link>
+      )}
+    </div>
+  );
+};
 
-      <Footer style={{ textAlign: 'center', background: 'transparent' }}>
-        Skyrocket Trading Bot ©{new Date().getFullYear()}
-      </Footer>
-    </Layout>
+function App() {
+  return (
+    <Router>
+      <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+        
+        {/* TOP BAR */}
+        <Header style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            background: '#1a1a1a', 
+            padding: '0 20px' 
+        }}>
+          <Title level={3} style={{ margin: 0, color: 'white' }}>Skyrocket 🚀</Title>
+          <HeaderActions />
+        </Header>
+        
+        {/* MAIN CONTENT AREA */}
+        <Content style={{ padding: '30px' }}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Routes>
+        </Content>
+
+        <Footer style={{ textAlign: 'center', background: 'transparent' }}>
+          Skyrocket Trading Bot ©{new Date().getFullYear()}
+        </Footer>
+      </Layout>
+    </Router>
   )
 }
 
-export default App
+export default App;
