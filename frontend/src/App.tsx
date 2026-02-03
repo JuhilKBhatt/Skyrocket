@@ -1,34 +1,43 @@
+// frontend/src/App.tsx
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { Layout, Button, Card, Typography } from 'antd'
 import './App.css'
+
+const { Header, Content, Footer } = Layout;
+const { Title, Paragraph } = Typography;
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <Layout style={{ minHeight: '100vh', background: 'transparent' }}>
+      <Header style={{ display: 'flex', alignItems: 'center', background: '#1a1a1a', padding: '0 20px' }}>
+        <Title level={3} style={{ margin: 0, color: 'white' }}>Skyrocket 🚀</Title>
+      </Header>
+      
+      <Content style={{ padding: '50px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Card title="Control Panel" style={{ width: 400 }}>
+          <div style={{ textAlign: 'center' }}>
+            <Paragraph>
+              Current Count: <strong>{count}</strong>
+            </Paragraph>
+            
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <Button type="primary" onClick={() => setCount((c) => c + 1)}>
+                Increase
+              </Button>
+              <Button danger onClick={() => setCount(0)}>
+                Reset tr
+              </Button>
+            </div>
+          </div>
+        </Card>
+      </Content>
+
+      <Footer style={{ textAlign: 'center', background: 'transparent' }}>
+        Skyrocket Trading Bot ©{new Date().getFullYear()}
+      </Footer>
+    </Layout>
   )
 }
 
