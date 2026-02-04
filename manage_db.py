@@ -11,6 +11,7 @@ DEFAULT_ENV = "dev"
 def load_config(env):
     """
     Determines which docker-compose file and DB settings to use.
+    Reads .env file to find the actual Database User/Name.
     """
     config = {
         "compose_file": "",
@@ -20,28 +21,31 @@ def load_config(env):
         "db_name": "postgres"   # Default fallback
     }
 
+    # 1. Select Compose File
     if env == "dev":
         config["compose_file"] = "docker-compose.dev.yml"
-        config["db_name"] = "skyrocket_dev"
-        config["db_user"] = "postgres"
+        config["db_name"] = "skyrocket_dev" # Default dev DB
         print(f"🔧 Mode: DEVELOPMENT (Using {config['compose_file']})")
-
     elif env == "prod":
         config["compose_file"] = "docker-compose.prod.yml"
         print(f"Mj Mode: PRODUCTION (Using {config['compose_file']})")
-        
-        # Try to load DB name from .env for Prod
-        if os.path.exists(".env"):
-            with open(".env") as f:
-                for line in f:
-                    if line.startswith("POSTGRES_DB="):
-                        config["db_name"] = line.strip().split("=")[1]
-                    if line.startswith("POSTGRES_USER="):
-                        config["db_user"] = line.strip().split("=")[1]
-        else:
-            print("⚠️  Warning: .env file not found. Using default DB settings.")
-            config["db_name"] = "skyrocket_prod"
-            config["db_user"] = "admin"
+
+    # 2. Override defaults by reading .env file
+    if os.path.exists(".env"):
+        print("📄 Reading settings from .env file...")
+        with open(".env") as f:
+            for line in f:
+                # Ignore comments and empty lines
+                if line.strip() and not line.startswith("#"):
+                    parts = line.strip().split("=", 1)
+                    if len(parts) == 2:
+                        key, value = parts
+                        if key == "POSTGRES_DB":
+                            config["db_name"] = value
+                        if key == "POSTGRES_USER":
+                            config["db_user"] = value
+    else:
+        print("⚠️  Warning: .env file not found. Using defaults.")
 
     return config
 
