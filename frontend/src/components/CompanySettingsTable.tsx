@@ -1,44 +1,53 @@
-import { useState } from 'react';
-import { Table, Tag, InputNumber, Button, Modal, Form, Input, Popconfirm } from 'antd';
+import { useState, useEffect } from 'react';
+import { Table, Tag, InputNumber, Button, Popconfirm, message } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-
-interface CompanyDataType {
-  key: string;
-  name: string;
-  ticker: string;
-  concurrentTrades: number;
-}
-
-const initialData: CompanyDataType[] = [
-  { key: '1', name: 'Apple Inc.', ticker: 'AAPL', concurrentTrades: 2 },
-  { key: '2', name: 'Tesla, Inc.', ticker: 'TSLA', concurrentTrades: 1 },
-  { key: '3', name: 'NVIDIA Corp.', ticker: 'NVDA', concurrentTrades: 3 },
-  { key: '4', name: 'Microsoft Corp.', ticker: 'MSFT', concurrentTrades: 2 },
-];
+import { settingsApi } from '../services/settingsApi';
+import type { CompanyDataType } from '../services/settingsApi';
+import { AddCompanyModal } from './AddCompanyModal.tsx';
 
 export const CompanySettingsTable = () => {
-  const [dataSource, setDataSource] = useState<CompanyDataType[]>(initialData);
+  const [dataSource, setDataSource] = useState<CompanyDataType[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form] = Form.useForm();
 
-  // Function to delete a row
-  const handleDelete = (key: string) => {
-    const newData = dataSource.filter((item) => item.key !== key);
-    setDataSource(newData);
+  const fetchWatchlist = async () => {
+    try {
+      const data = await settingsApi.getWatchlist();
+      setDataSource(data);
+    } catch (error) {
+      message.error("Failed to load watchlist");
+    }
   };
 
-  // Function to add a new row
-  const handleAdd = (values: any) => {
-    const newData: CompanyDataType = {
-      key: Date.now().toString(), // Simple unique ID
-      name: values.name,
-      ticker: values.ticker.toUpperCase(),
-      concurrentTrades: values.concurrentTrades || 1,
-    };
-    setDataSource([...dataSource, newData]);
-    setIsModalOpen(false);
-    form.resetFields();
+  useEffect(() => {
+    fetchWatchlist();
+  }, []);
+
+  const handleAdd = async (values: any) => {
+    try {
+      const payload: CompanyDataType = {
+        ticker: values.ticker.toUpperCase(),
+        company_name: values.name,
+        max_concurrent_trades: values.concurrentTrades || 1,
+        is_active: true
+      };
+      await settingsApi.addCompany(payload);
+      message.success("Company added!");
+      setIsModalOpen(false);
+      fetchWatchlist();
+    } catch (error) {
+      message.error("Could not add company. Ticker might exist.");
+    }
+  };
+
+  const handleDelete = async (ticker: string) => {
+    try {
+      await settingsApi.deleteCompany(ticker);
+      message.success("Company removed");
+      fetchWatchlist();
+    } catch (error) {
+      message.error("Failed to delete");
+    }
   };
 
   const columns: ColumnsType<CompanyDataType> = [
@@ -50,30 +59,20 @@ export const CompanySettingsTable = () => {
     },
     {
       title: 'Company Name',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'company_name',
+      key: 'company_name',
     },
     {
       title: 'Max Concurrent Trades',
-      dataIndex: 'concurrentTrades',
-      key: 'concurrentTrades',
-      render: (value, record) => (
-        <InputNumber 
-          min={1} 
-          max={10} 
-          defaultValue={value}
-          // Optional: Update state on change if you want to save this edit
-          onChange={(val) => {
-            record.concurrentTrades = val || 1; 
-          }}
-        />
-      ),
+      dataIndex: 'max_concurrent_trades',
+      key: 'max_concurrent_trades',
+      render: (value) => <InputNumber min={1} max={10} defaultValue={value} disabled />,
     },
     {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Popconfirm title="Sure to remove?" onConfirm={() => handleDelete(record.key)}>
+        <Popconfirm title="Remove from watchlist?" onConfirm={() => handleDelete(record.ticker)}>
           <Button type="text" danger icon={<DeleteOutlined />} />
         </Popconfirm>
       ),
@@ -82,7 +81,6 @@ export const CompanySettingsTable = () => {
 
   return (
     <div>
-      {/* Add Button aligned to the right */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
           Add Company
@@ -90,6 +88,7 @@ export const CompanySettingsTable = () => {
       </div>
 
       <Table 
+        rowKey="ticker" 
         columns={columns} 
         dataSource={dataSource} 
         pagination={false} 
@@ -97,39 +96,11 @@ export const CompanySettingsTable = () => {
         size="middle"
       />
 
-      {/* Modal for Adding New Company */}
-      <Modal 
-        title="Add Company to Watchlist" 
-        open={isModalOpen} 
-        onOk={() => form.submit()} 
-        onCancel={() => setIsModalOpen(false)}
-      >
-        <Form form={form} layout="vertical" onFinish={handleAdd}>
-          <Form.Item 
-            name="name" 
-            label="Company Name" 
-            rules={[{ required: true, message: 'Please input company name' }]}
-          >
-            <Input placeholder="e.g. Amazon" />
-          </Form.Item>
-          
-          <Form.Item 
-            name="ticker" 
-            label="Ticker Symbol" 
-            rules={[{ required: true, message: 'Please input ticker' }]}
-          >
-            <Input placeholder="e.g. AMZN" style={{ textTransform: 'uppercase' }} />
-          </Form.Item>
-
-          <Form.Item 
-            name="concurrentTrades" 
-            label="Max Concurrent Trades" 
-            initialValue={1}
-          >
-            <InputNumber min={1} max={10} style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <AddCompanyModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSubmit={handleAdd} 
+      />
     </div>
   );
 };
