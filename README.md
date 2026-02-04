@@ -148,3 +148,17 @@ Access:
 ### 2.2.3 - Database Management
 
 # 3.0 - Maintenance & Troubleshooting Commands
+
+## 3.1 - Database
+
+**1. Development (Default)** Running without arguments targets **`skyrocket_dev` using** `docker-compose.dev.yml`.
+
+* **View Data:** `python3 manage_db.py view`
+* **Update Models:** `python3 manage_db.py update -m "Added trade column"`
+* **Reset DB:** `python3 manage_db.py delete`
+
+**2. Production** Add the **`--env prod` flag to target** **`skyrocket_prod` using** `docker-compose.prod.yml`.
+
+* **View Data:** `python3 manage_db.py --env prod view`
+* **Restore Backup:** `python3 manage_db.py --env prod restore backup_v1.sql`
+* **Wipe Data:** `python3 manage_db.py --env prod delete` *(Will ask for "DESTROY" confirmation)*
