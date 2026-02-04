@@ -1,12 +1,13 @@
+# docker-compose.dev.yml
 services:
   db:
     image: timescale/timescaledb:latest-pg15
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=skyrocket_dev
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     ports:
       - "5433:5432"
 
@@ -19,7 +20,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skyrocket_dev
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - ALPHA_VANTAGE_API_KEY=${ALPACA_API_KEY}
     depends_on:
       - db
 
