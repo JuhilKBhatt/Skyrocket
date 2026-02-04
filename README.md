@@ -149,6 +149,10 @@ Access:
 
 # 3.0 - Maintenance & Troubleshooting Commands
 
+python3 manage_db.py update -m "Added settings tables"
+
+docker-compose -f docker-compose.dev.yml exec backend alembic upgrade head
+
 ## 3.1 - Database
 
 **1. Development (Default)** Running without arguments targets **`skyrocket_dev` using** `docker-compose.dev.yml`.
