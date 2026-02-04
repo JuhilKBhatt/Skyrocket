@@ -24,7 +24,7 @@ export const SettingsPage = () => {
         });
       })
       .catch(() => {
-         // Silent fail on load or custom message
+        message.error("Failed to load global settings");
       });
   }, [form]);
 
@@ -39,6 +39,7 @@ export const SettingsPage = () => {
         await settingsApi.updateGlobalSettings(payload);
         message.success("Global settings saved successfully!");
     } catch (e) {
+        console.error("Error saving settings:", e);
         message.error("Error saving settings");
     } finally {
         setLoading(false);
@@ -71,7 +72,7 @@ export const SettingsPage = () => {
                 <InputNumber<number> 
                   min={MIN_STOP_LOSS_PCT} max={MAX_STOP_LOSS_PCT} 
                   formatter={(value) => `${value}%`}
-                  parser={(value) => parseFloat(value?.replace('%', '') || '0')}
+                  parser={(value) => Number.parseFloat(value?.replace('%', '') || '0')}
                   style={{ width: '100%' }} 
                 />
               </Form.Item>
@@ -86,7 +87,7 @@ export const SettingsPage = () => {
                 <InputNumber<number> 
                   min={MIN_TRADE_ALLOCATION_PCT} max={MAX_TRADE_ALLOCATION_PCT} step={0.1}
                   formatter={(value) => `${value}%`}
-                  parser={(value) => parseFloat(value?.replace('%', '') || '0')}
+                  parser={(value) => Number.parseFloat(value?.replace('%', '') || '0')}
                   style={{ width: '100%' }} 
                 />
               </Form.Item>

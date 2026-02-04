@@ -17,8 +17,8 @@ export const AddCompanyModal = ({ isOpen, onClose, onSubmit }: AddCompanyModalPr
           form.resetFields();
         });
       })
-      .catch((info) => {
-        console.log('Validate Failed:', info);
+      .catch((error_) => {
+        console.log('Validate Failed:', error_);
       });
   };
 

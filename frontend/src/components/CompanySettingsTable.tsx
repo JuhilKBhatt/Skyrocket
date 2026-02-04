@@ -15,6 +15,7 @@ export const CompanySettingsTable = () => {
       const data = await settingsApi.getWatchlist();
       setDataSource(data);
     } catch (error) {
+      console.error("Failed to load watchlist:", error);
       message.error("Failed to load watchlist");
     }
   };
@@ -36,6 +37,7 @@ export const CompanySettingsTable = () => {
       setIsModalOpen(false);
       fetchWatchlist();
     } catch (error) {
+      console.error("Failed to add company:", error);
       message.error("Could not add company. Ticker might exist.");
     }
   };
@@ -46,6 +48,7 @@ export const CompanySettingsTable = () => {
       message.success("Company removed");
       fetchWatchlist();
     } catch (error) {
+      console.error("Failed to delete company:", error);
       message.error("Failed to delete");
     }
   };
