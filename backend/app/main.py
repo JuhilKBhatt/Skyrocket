@@ -1,24 +1,27 @@
+# backend/app/main.py
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.routers import settings as settings_router
 import os
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-@app.get("/")
-def readnY_root():
-    return {
-        "message": "Welcome to Project Skyrocket 🚀",
-        "environment": "Production" if os.getenv("ALPACA_API_KEY") else "Development",
-        "docs_url": "/docs"
-    }
+origins = [
+    "http://localhost:5173", # Dev
+    "http://localhost:80",   # Prod
+    "http://localhost",      # (Standard)
+    "http://127.0.0.1"
+]
 
-@app.get("/health")
-def health_check():
-    """
-    Docker uses this to check if the backend is alive.
-    """
-    return {"status": "healthy", "database_url": settings.DATABASE_URL}
+# ENABLE CORS 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/api/test")
-def test_endpoint():
-    return {"data": "This data came from the Python Backend!"}
+# REGISTER ROUTER
+app.include_router(settings_router.router)
