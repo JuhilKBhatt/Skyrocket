@@ -1,11 +1,12 @@
 # backend/app/routers/settings.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from app.core.database import get_db
 from app.models.settings import Watchlist, GlobalSettings
 from app.schemas import WatchlistCreate, Watchlist as WatchlistSchema
 from app.schemas import GlobalSettingsUpdate, GlobalSettings as GlobalSettingsSchema
+from app.services.yahoo_finance import fetch_and_store_history
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -15,7 +16,7 @@ def get_watchlist(db: Session = Depends(get_db)):
     return db.query(Watchlist).all()
 
 @router.post("/watchlist", response_model=WatchlistSchema)
-def add_company(company: WatchlistCreate, db: Session = Depends(get_db)):
+def add_company(company: WatchlistCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # Check if exists
     exists = db.query(Watchlist).filter(Watchlist.ticker == company.ticker).first()
     if exists:
@@ -25,6 +26,10 @@ def add_company(company: WatchlistCreate, db: Session = Depends(get_db)):
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
+
+    # Fetch historical data in background
+    background_tasks.add_task(fetch_and_store_history, new_item.ticker, db)
+
     return new_item
 
 @router.delete("/watchlist/{ticker}")
