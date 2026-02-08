@@ -3,19 +3,18 @@ import os
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
 from app.models.market_data import MarketCandle
 from app.models.settings import Watchlist
+from alpaca.data import StockHistoricalDataClient, TimeFrame, StockBarsRequest
 
 # Load keys from environment
 API_KEY = os.getenv("ALPACA_API_KEY")
 SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+THIRTY_MIN = TimeFrame(30, TimeFrame.Minute)
 
 client = StockHistoricalDataClient(API_KEY, SECRET_KEY)
 
-def fetch_and_store_history(ticker: str, db: Session, timeframe=TimeFrame.Minute, days_back=5):
+def fetch_and_store_history(ticker: str, db: Session, timeframe=THIRTY_MIN, days_back=1825):
     """
     Fetches historical bars from Alpaca and syncs to DB using UPSERT.
     """
@@ -73,4 +72,4 @@ def update_all_watchlists(db: Session):
     active_companies = db.query(Watchlist).filter(Watchlist.is_active == True).all()
     for company in active_companies:
         # Fetch last 1 day of 1-minute data for the update loop
-        fetch_and_store_history(company.ticker, db, timeframe=TimeFrame.Minute, days_back=1)
+        fetch_and_store_history(company.ticker, db, timeframe=THIRTY_MIN, days_back=1)

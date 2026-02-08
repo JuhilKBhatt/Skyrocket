@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(
         scheduled_market_update,
         'cron',
-        minute='*',
+        minute='0,30',
         id='market_update',
         replace_existing=True
     )
