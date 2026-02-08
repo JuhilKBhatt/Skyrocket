@@ -6,8 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.routers import settings as settings_router
 from app.core.database import SessionLocal
-# Import the update function we created earlier
-from app.services.yahoo_finance import update_all_watchlists 
+from app.services.market_data import update_all_watchlists 
 
 # SCHEDULER SETUP
 scheduler = AsyncIOScheduler()

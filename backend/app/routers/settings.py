@@ -6,7 +6,7 @@ from app.core.database import get_db
 from app.models.settings import Watchlist, GlobalSettings
 from app.schemas import WatchlistCreate, Watchlist as WatchlistSchema
 from app.schemas import GlobalSettingsUpdate, GlobalSettings as GlobalSettingsSchema
-from app.services.yahoo_finance import fetch_and_store_history
+from app.services.market_data import fetch_and_store_history
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
