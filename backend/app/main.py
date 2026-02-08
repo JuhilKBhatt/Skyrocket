@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.routers import settings as settings_router
 from app.core.database import SessionLocal
-from app.services.market_data import update_all_watchlists 
+from app.services.market_data import update_all_watchlists, backfill_missing_candles
 
 # SCHEDULER SETUP
 scheduler = AsyncIOScheduler()
@@ -22,7 +22,18 @@ def scheduled_market_update():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 Starting Scheduler...")
+    # 1. RUN BACKFILLER ON STARTUP
+    print("🚀 App Startup: Running data gap filler...")
+    db = SessionLocal()
+    try:
+        backfill_missing_candles(db)
+    except Exception as e:
+        print(f"⚠️ Backfill failed on startup: {e}")
+    finally:
+        db.close()
+
+    # 2. START THE REGULAR SCHEDULED UPDATER
+    print("⏰ Starting Scheduler...")
     scheduler.add_job(
         scheduled_market_update,
         'cron',
