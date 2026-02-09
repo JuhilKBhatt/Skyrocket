@@ -1,30 +1,71 @@
-// frontend/src/components/ActiveTradesList.tsx
-import { Card, List, Tag, Typography } from 'antd';
+// src/components/ActiveTradesList.tsx
+import { useEffect, useState } from 'react';
+import { Card, Table, Tag, Typography } from 'antd';
+import { tradesApi } from '../services/tradesApi';
+import type { TradeType } from '../services/tradesApi';
+import type { ColumnsType } from 'antd/es/table';
 
 const { Text } = Typography;
 
-const data = [
-  { symbol: 'AAPL', entry: 150.50, current: 155.20, pnl: '+3.1%' },
-  { symbol: 'TSLA', entry: 210.00, current: 205.50, pnl: '-2.1%' },
-];
-
 export const ActiveTradesList = () => {
+  const [data, setData] = useState<TradeType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchActiveTrades = async () => {
+    try {
+      const trades = await tradesApi.getActiveTrades();
+      setData(trades);
+    } catch (error) {
+      console.error("Failed to fetch active trades:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveTrades();
+    const interval = setInterval(fetchActiveTrades, 30000); // Update every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const columns: ColumnsType<TradeType> = [
+    {
+      title: 'Symbol',
+      dataIndex: 'symbol',
+      key: 'symbol',
+      render: (text) => <Text strong>{text}</Text>,
+    },
+    {
+      title: 'Entry Price',
+      dataIndex: 'entry_price',
+      key: 'entry_price',
+      render: (value) => `$${value.toFixed(2)}`,
+    },
+    {
+      title: 'PnL %',
+      dataIndex: 'pnl_percent',
+      key: 'pnl_percent',
+      render: (value) => {
+        const pct = value || 0;
+        return (
+          <Tag color={pct >= 0 ? 'green' : 'red'}>
+            {pct.toFixed(2)}%
+          </Tag>
+        );
+      },
+    },
+  ];
+
   return (
     <Card title="Active Trades" style={{ height: '100%' }}>
-      <List
-        itemLayout="horizontal"
-        dataSource={data}
-        renderItem={(item) => (
-          <List.Item>
-            <List.Item.Meta
-              title={<Text strong>{item.symbol}</Text>}
-              description={`Entry: $${item.entry}`}
-            />
-            <Tag color={item.pnl.includes('+') ? 'green' : 'red'}>
-              {item.pnl}
-            </Tag>
-          </List.Item>
-        )}
+      <Table 
+        dataSource={data} 
+        columns={columns} 
+        rowKey="id" 
+        pagination={false} 
+        loading={loading}
+        size="small"
+        bordered
       />
     </Card>
   );

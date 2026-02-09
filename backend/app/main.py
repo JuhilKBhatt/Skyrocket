@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
-from app.routers import settings as settings_router
+from app.routers import settings as settings_router, trades as trades_router
 from app.core.database import SessionLocal
 from app.services.market_data import update_all_watchlists, backfill_missing_candles
 
@@ -65,3 +65,4 @@ app.add_middleware(
 )
 
 app.include_router(settings_router.router)
+app.include_router(trades_router.router)
