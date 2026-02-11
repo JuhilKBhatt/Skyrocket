@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.routers import settings as settings_router, trades as trades_router
 from app.core.database import SessionLocal
 from app.services.market_data import update_all_watchlists, backfill_missing_candles
+from app.services.trade_manager import run_trade_cycle
 
 # SCHEDULER SETUP
 scheduler = AsyncIOScheduler()
@@ -17,6 +18,7 @@ def scheduled_market_update():
     db = SessionLocal()
     try:
         update_all_watchlists(db)
+        run_trade_cycle(db)
     finally:
         db.close()
 
