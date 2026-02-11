@@ -1,7 +1,7 @@
 # backend/app/services/backtester.py
 from sqlalchemy.orm import Session
 from app.models.market_data import MarketCandle
-from app.services.strategies import get_combined_signal
+from app.services.algorithm_manager import get_decision_from_candles
 from typing import Dict
 
 def run_backtest(db: Session, ticker: str, timeframe: str = "30Min") -> Dict:
@@ -10,31 +10,31 @@ def run_backtest(db: Session, ticker: str, timeframe: str = "30Min") -> Dict:
         MarketCandle.timeframe == timeframe
     ).order_by(MarketCandle.timestamp.asc()).all()
 
-    if len(candles) < 30:
-        return {"error": "Insufficient data"}
+    if len(candles) < 50: # Increased threshold for technical indicators
+        return {"error": f"Insufficient data: {len(candles)} candles found."}
 
     trades = []
     active_position = None
     balance = 10000.0
     initial_balance = 10000.0
     
-    for i in range(20, len(candles)):
+    for i in range(30, len(candles)):
         current_candle = candles[i]
         
-        # Determine if this is the last candle of the trading day
+        # Day Trading Exit Check
         is_eod = False
         if i < len(candles) - 1:
-            next_candle = candles[i+1]
-            if next_candle.timestamp.date() > current_candle.timestamp.date():
+            if candles[i+1].timestamp.date() > current_candle.timestamp.date():
                 is_eod = True
         else:
-            is_eod = True # End of all data
+            is_eod = True
 
-        # Get signal
-        history_slice_desc = candles[max(0, i-50):i+1][::-1]
-        decision = get_combined_signal(history_slice_desc)
+        # Call Algorithm Manager for decision
+        # We provide the slice of history leading up to 'now'
+        history_slice = candles[max(0, i-100):i+1]
+        decision = get_decision_from_candles(history_slice)
 
-        # ENTRY: Only buy if it's not the end of the day
+        # Execution Logic
         if decision == "BUY" and not active_position and not is_eod:
             active_position = {
                 "ticker": ticker,
@@ -42,7 +42,6 @@ def run_backtest(db: Session, ticker: str, timeframe: str = "30Min") -> Dict:
                 "entry_time": current_candle.timestamp.isoformat(),
             }
         
-        # EXIT: Sell on signal OR End of Day (Day Trading rule)
         elif active_position and (decision == "SELL" or is_eod):
             exit_price = current_candle.close
             pnl_pct = (exit_price - active_position["entry_price"]) / active_position["entry_price"]

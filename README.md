@@ -6,7 +6,7 @@
 
 ## 1.1 - Description
 
-A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strategies, one AI-driven news sentiment model, and one general LLM reasoning layer independently vote on Buy / Sell / Hold decisions
+A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strategies, one AI-driven news sentiment model, and one general LLM reasoning layer independently vote on Buy / No Buy / Sell / (If Buy then Hold) decisions.
 
 ## 1.2 - Tech Stack
 
