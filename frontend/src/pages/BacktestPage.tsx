@@ -51,7 +51,19 @@ export const BacktestPage = () => {
         <>
           <Row gutter={16} style={{ marginBottom: 24 }}>
             <Col span={6}>
-              <Card><Statistic title="Total Return" value={results.summary.total_return_pct} suffix="%" precision={2} valueStyle={{ color: results.summary.total_return_pct >= 0 ? '#3f8600' : '#cf1322' }} /></Card>
+              <Card>
+                <Statistic
+                  title="Total Return"
+                  value={results.summary.total_return_pct}
+                  suffix="%"
+                  precision={2}
+                  styles={{
+                    content: {
+                      color: results.summary.total_return_pct >= 0 ? '#3f8600' : '#cf1322'
+                    }
+                  }}
+                />
+              </Card>
             </Col>
             <Col span={6}>
               <Card><Statistic title="Win Rate" value={results.summary.win_rate} suffix="%" precision={2} /></Card>
