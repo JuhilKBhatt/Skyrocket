@@ -4,6 +4,8 @@ import { Layout, Typography, Button } from 'antd';
 import { SettingOutlined, HomeOutlined } from '@ant-design/icons';
 import { Dashboard } from './pages/Dashboard';
 import { SettingsPage } from './pages/SettingsPage';
+import { BacktestPage } from './pages/BacktestPage';
+import { LineChartOutlined } from '@ant-design/icons';
 import './App.css';
 
 const { Header, Content, Footer } = Layout;
@@ -53,6 +55,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/backtest" element={<BacktestPage />} />
           </Routes>
         </Content>
 
