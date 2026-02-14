@@ -1,12 +1,45 @@
+# --- CORE WEB & API FRAMEWORK ---
 fastapi
 uvicorn[standard]
-python-dotenv
 pydantic
 pydantic-settings
+python-dotenv
+requests
+aiohttp
+
+# --- TRADING & FINANCE ---
+lumibot
+alpaca-trade-api
+alpha-vantage
+yfinance
+ccxt
+quantstats-lumi
+exchange_calendars
+
+# --- DATABASE & ORM ---
 sqlalchemy
 psycopg2-binary
 alembic
-requests
-alpaca-py
+greenlet
+
+# --- AI, ML & SENTIMENT ANALYSIS ---
+torch
+transformers
+scikit-learn
+numpy
+pandas
+scipy
+nltk
+beautifulsoup4
+
+# --- SCHEDULING & UTILS ---
 apscheduler
 pytz
+timedelta
+python-dateutil
+tqdm
+
+# --- VISUALIZATION ---
+matplotlib
+plotly
+seaborn
