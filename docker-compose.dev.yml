@@ -15,6 +15,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    dns:
+      - 8.8.8.8
     volumes:
       - ./backend:/app
     ports:
@@ -24,6 +26,8 @@ services:
       - ALPHA_VANTAGE_API_KEY=${ALPHA_VANTAGE_API_KEY}
       - ALPACA_API_KEY=${ALPACA_API_KEY}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - ALPACA_API_SECRET=${ALPACA_SECRET_KEY}  # For Lumibot auto-config
+      - ALPACA_BASE_URL=${ALPACA_BASE_URL}
     depends_on:
       - db
 
