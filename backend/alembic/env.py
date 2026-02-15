@@ -9,7 +9,7 @@ from alembic import context
 
 # Import your Base and Models so Alembic can detect changes
 from app.core.database import Base
-from app.models import trade, market_data, settings 
+from app.models import trade, market_data, settings, sentiment
 
 # this is the Alembic Config object
 config = context.config
