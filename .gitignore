@@ -4,3 +4,4 @@ backend/app/services/.DS_Store
 backend/.DS_Store
 backend/app/.DS_Store
 .DS_Store
+.env
