@@ -4,11 +4,14 @@ FROM python:3.10
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (gcc required for some python packages like psycopg2)
+# Install system dependencies (needed for psycopg2, numpy, etc.)
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade Python build tools FIRST (critical)
+RUN pip install --upgrade pip setuptools wheel
 
 # Install python dependencies
 COPY requirements.txt .
