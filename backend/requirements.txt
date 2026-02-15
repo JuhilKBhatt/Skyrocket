@@ -9,7 +9,7 @@ aiohttp
 
 # --- TRADING & FINANCE ---
 lumibot
-alpaca-trade-api
+alpaca-py
 alpha-vantage
 yfinance
 ccxt
