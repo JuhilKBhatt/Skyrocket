@@ -17,6 +17,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from app.core.database import SessionLocal
 from app.models.sentiment import NewsSentiment
+from app.models.settings import GlobalSettings, Watchlist
 
 # --- CONFIGURATION ---
 API_KEY = os.getenv("ALPACA_API_KEY")
@@ -210,6 +211,7 @@ if __name__ == "__main__":
     take_profit = 0.10 
     stop_loss = 0.06
 
+    db = SessionLocal()
     try:
         # Fetch Global Settings
         settings = db.query(GlobalSettings).first()
