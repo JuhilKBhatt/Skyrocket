@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, InputNumber, Button, Popconfirm, message } from 'antd';
+import { Table, Tag, Button, Popconfirm, message } from 'antd'; // Removed InputNumber
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { settingsApi } from '../services/settingsApi';
 import type { CompanyDataType } from '../services/settingsApi';
-import { AddCompanyModal } from './AddCompanyModal.tsx';
+import { AddCompanyModal } from './AddCompanyModal'; // Fixed import path extension
 
 export const CompanySettingsTable = () => {
   const [dataSource, setDataSource] = useState<CompanyDataType[]>([]);
@@ -29,7 +29,6 @@ export const CompanySettingsTable = () => {
       const payload: CompanyDataType = {
         ticker: values.ticker.toUpperCase(),
         company_name: values.name,
-        max_concurrent_trades: values.concurrentTrades || 1,
         is_active: true
       };
       await settingsApi.addCompany(payload);
@@ -64,12 +63,6 @@ export const CompanySettingsTable = () => {
       title: 'Company Name',
       dataIndex: 'company_name',
       key: 'company_name',
-    },
-    {
-      title: 'Max Concurrent Trades',
-      dataIndex: 'max_concurrent_trades',
-      key: 'max_concurrent_trades',
-      render: (value) => <InputNumber min={1} max={10} defaultValue={value} disabled />,
     },
     {
       title: 'Action',

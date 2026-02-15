@@ -1,4 +1,4 @@
-import { Modal, Form, Input, InputNumber } from 'antd';
+import { Modal, Form, Input } from 'antd';
 
 interface AddCompanyModalProps {
   isOpen: boolean;
@@ -43,13 +43,6 @@ export const AddCompanyModal = ({ isOpen, onClose, onSubmit }: AddCompanyModalPr
           rules={[{ required: true, message: 'Please input ticker' }]}
         >
           <Input placeholder="e.g. AMZN" style={{ textTransform: 'uppercase' }} />
-        </Form.Item>
-        <Form.Item
-          name="concurrentTrades"
-          label="Max Concurrent Trades"
-          initialValue={1}
-        >
-          <InputNumber min={1} max={10} style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </Modal>

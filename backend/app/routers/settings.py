@@ -63,6 +63,7 @@ def update_global_settings(config: GlobalSettingsUpdate, db: Session = Depends(g
     
     settings.max_trade_allocation_pct = config.max_trade_allocation_pct
     settings.global_stop_loss_pct = config.global_stop_loss_pct
+    settings.take_profit_pct = config.take_profit_pct
     settings.is_trading_enabled = config.is_trading_enabled
     
     db.commit()

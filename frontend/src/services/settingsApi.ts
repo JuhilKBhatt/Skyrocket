@@ -4,12 +4,12 @@ export interface CompanyDataType {
   id?: number;
   ticker: string;
   company_name: string;
-  max_concurrent_trades: number;
   is_active?: boolean;
 }
 
 export interface GlobalSettingsType {
   global_stop_loss_pct: number;
+  tacke_profit_pct: number;
   max_trade_allocation_pct: number;
   is_trading_enabled: boolean;
 }

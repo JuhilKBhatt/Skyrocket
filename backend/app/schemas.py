@@ -7,7 +7,6 @@ from typing import Optional
 class WatchlistBase(BaseModel):
     ticker: str
     company_name: Optional[str] = None
-    max_concurrent_trades: int = 1
     is_active: bool = True
 
 class WatchlistCreate(WatchlistBase):
@@ -22,6 +21,7 @@ class Watchlist(WatchlistBase):
 class GlobalSettingsBase(BaseModel):
     max_trade_allocation_pct: float
     global_stop_loss_pct: float
+    take_profit_pct: float 
     is_trading_enabled: bool
 
 class GlobalSettingsUpdate(GlobalSettingsBase):
