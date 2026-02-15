@@ -42,7 +42,7 @@ class MLTrader(Strategy):
     def get_dates(self): 
         today = self.get_datetime()
         three_days_prior = today - Timedelta(days=3)
-        return today.strftime('%Y-%m-%d'), three_days_prior.strftime('%Y-%m-%d')
+        return today, three_days_prior
 
     def cleanup_memory(self):
         """Forces the system to release memory to prevent 'Killed' errors"""
@@ -79,8 +79,8 @@ class MLTrader(Strategy):
         }
         params = {
             "symbols": self.symbol,
-            "start": three_days_prior,
-            "end": today,
+            "start": three_days_prior.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "end": today.strftime('%Y-%m-%dT%H:%M:%SZ'),
             "limit": 50,  # Fetch 50 headlines
             "sort": "desc"
         }
@@ -161,7 +161,7 @@ class MLTrader(Strategy):
 # --- RUNNER ---
 if __name__ == "__main__":
     start_date = datetime(2024,1,1)
-    end_date = datetime(2024,12,31) 
+    end_date = datetime(2025,12,31) 
     
     # You can change "SPY" to "AAPL" or "NVDA" here
     symbol = "SPY" 
