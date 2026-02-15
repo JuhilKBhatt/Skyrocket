@@ -36,8 +36,8 @@ class MLTrader(Strategy):
         self.sleeptime = "24H" 
         self.last_trade = None 
         self.cash_at_risk = cash_at_risk
-        self.tp_pct = tp_pct  # Store Take Profit %
-        self.sl_pct = sl_pct  # Store Stop Loss %
+        self.tp_pct = tp_pct
+        self.sl_pct = sl_pct
         
     def position_sizing(self): 
         cash = self.get_cash() 
@@ -202,13 +202,36 @@ class MLTrader(Strategy):
 if __name__ == "__main__":
     start_date = datetime(2024,1,1)
     end_date = datetime(2025,12,31) 
-    
-    # 4. SETTINGS - Change these to adjust strategy behavior
-    symbol = "SPY" 
-    cash_at_risk = 0.5  # 5% of available cash per trade
-    take_profit = 0.10  # 10% gain
-    stop_loss = 0.06    # 4% loss
 
+    # 2. FETCH SETTINGS FROM DATABASE
+    # Defaults in case DB is empty
+    symbol = "SPY" 
+    cash_at_risk = 0.5 
+    take_profit = 0.10 
+    stop_loss = 0.06
+
+    try:
+        # Fetch Global Settings
+        settings = db.query(GlobalSettings).first()
+        if settings:
+            # Convert DB percentages (e.g., 10.0) to decimal (0.10)
+            cash_at_risk = settings.max_trade_allocation_pct / 100.0
+            take_profit = settings.take_profit_pct / 100.0
+            stop_loss = settings.global_stop_loss_pct / 100.0
+
+        # Fetch First Active Symbol from Watchlist
+        # The bot currently runs on one symbol, so we pick the first active one.
+        ticker_item = db.query(Watchlist).filter(Watchlist.is_active == True).first()
+        if ticker_item:
+            symbol = ticker_item.ticker
+        
+        print(f"🚀 Loaded Config from DB: {symbol} | Risk: {cash_at_risk:.2%} | TP: {take_profit:.2%} | SL: {stop_loss:.2%}")
+
+    except Exception as e:
+        print(f"⚠️ Error loading settings from DB, using defaults: {e}")
+    finally:
+        db.close()
+    
     broker = Alpaca(ALPACA_CREDS) 
     
     # 5. Pass parameters dictionary to MLTrader
