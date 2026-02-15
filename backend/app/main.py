@@ -4,10 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
-from app.routers import settings as settings_router, trades as trades_router, backtest as backtest_router
+from app.routers import settings as settings_router, trades as trades_router
 from app.core.database import SessionLocal
 from app.services.market_data import update_all_watchlists, backfill_missing_candles
-from app.services.trade_manager import run_trade_cycle
 
 # SCHEDULER SETUP
 scheduler = AsyncIOScheduler()
@@ -18,7 +17,6 @@ def scheduled_market_update():
     db = SessionLocal()
     try:
         update_all_watchlists(db)
-        run_trade_cycle(db)
     finally:
         db.close()
 
@@ -68,4 +66,3 @@ app.add_middleware(
 
 app.include_router(settings_router.router)
 app.include_router(trades_router.router)
-app.include_router(backtest_router.router)
