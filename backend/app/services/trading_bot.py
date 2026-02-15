@@ -6,10 +6,17 @@ from datetime import datetime
 from timedelta import Timedelta 
 from finbert_utils import estimate_sentiment
 import os
+import sys
 import requests
 import json
 import gc # Garbage Collection (Critical for memory)
 import torch # To clear AI memory
+
+# Add the parent directory to sys.path so we can import from app
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from app.core.database import SessionLocal
+from app.models.sentiment import NewsSentiment
 
 # --- CONFIGURATION ---
 API_KEY = os.getenv("ALPACA_API_KEY")
@@ -51,27 +58,49 @@ class MLTrader(Strategy):
             torch.cuda.empty_cache()
 
     def get_sentiment(self): 
+        # 1. Get Date Objects
         today, three_days_prior = self.get_dates()
         today_str = today.strftime('%Y-%m-%d')
         
-        # --- DISK-BASED CACHE LOGIC ---
-        cache_file = "news_cache.json"
+        # 2. Construct Unique Cache Key (Fixes the symbol issue)
+        cache_key = f"{self.symbol}_{today_str}"
         
-        # Load cache from disk just for this check (keeps RAM low)
-        if os.path.exists(cache_file):
-            with open(cache_file, "r") as f:
-                try:
-                    file_cache = json.load(f)
-                except:
-                    file_cache = {}
-        else:
-            file_cache = {}
+        # --- DATABASE CHECK ---
+        # Try to find sentiment in the DB first
+        db = SessionLocal()
+        try:
+            db_sentiment = db.query(NewsSentiment).filter(
+                NewsSentiment.symbol == self.symbol,
+                NewsSentiment.date == today.date() # Ensure we compare date objects
+            ).first()
+            
+            if db_sentiment:
+                print(f"DYCA Found in DB: {self.symbol} on {today_str}")
+                return db_sentiment.sentiment_score, db_sentiment.sentiment_label
+        except Exception as e:
+            print(f"⚠️ DB Read Error: {e}")
+        finally:
+            db.close()
+        # ----------------------
 
-        if today_str in file_cache:
-            return file_cache[today_str][0], file_cache[today_str][1]
+        # --- DISK-BASED JSON CACHE (Fallback) ---
+        cache_file = "news_cache.json"
+        file_cache = {}
+        
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r") as f:
+                    file_cache = json.load(f)
+            except:
+                file_cache = {}
+
+        # Check using the new unique key
+        if cache_key in file_cache:
+            return file_cache[cache_key][0], file_cache[cache_key][1]
         # -------------------------------
 
-        # If not in cache, fetch from API
+        # If not in DB or JSON, fetch from API
+        print(f"qv Fetching new data for {self.symbol}...")
         url = "https://data.alpaca.markets/v1beta1/news"
         headers = {
             "APCA-API-KEY-ID": API_KEY,
@@ -81,7 +110,7 @@ class MLTrader(Strategy):
             "symbols": self.symbol,
             "start": three_days_prior.strftime('%Y-%m-%dT%H:%M:%SZ'),
             "end": today.strftime('%Y-%m-%dT%H:%M:%SZ'),
-            "limit": 50,  # Fetch 50 headlines
+            "limit": 50,
             "sort": "desc"
         }
         
@@ -92,24 +121,40 @@ class MLTrader(Strategy):
                 data = response.json()
                 all_headlines = [ev["headline"] for ev in data.get("news", [])]
                 
-                # Filter logic
                 final_news = [h for h in all_headlines if self.symbol in h or self.symbol.lower() in h.lower()]
                 if not final_news:
                     final_news = all_headlines[:5]
                 else:
                     final_news = final_news[:5]
-
         except Exception as e:
             print(f"⚠️ News Error: {e}")
 
         # Run AI
         probability, sentiment = estimate_sentiment(final_news)
         
-        # --- SAVE TO DISK IMMEDIATELY ---
-        file_cache[today_str] = [probability, sentiment]
+        # --- SAVE TO DATABASE ---
+        db = SessionLocal()
+        try:
+            new_entry = NewsSentiment(
+                symbol=self.symbol,
+                date=today.date(),
+                sentiment_score=probability,
+                sentiment_label=sentiment
+            )
+            db.add(new_entry)
+            db.commit()
+            print(f"💾 Saved to DB: {self.symbol}")
+        except Exception as e:
+            print(f"⚠️ DB Save Error: {e}")
+            db.rollback()
+        finally:
+            db.close()
+        # ------------------------
+
+        # --- SAVE TO JSON CACHE ---
+        file_cache[cache_key] = [probability, sentiment]
         with open(cache_file, "w") as f:
             json.dump(file_cache, f)
-        # --------------------------------
         
         return probability, sentiment
 
