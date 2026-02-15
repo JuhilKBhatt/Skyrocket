@@ -179,7 +179,7 @@ class MLTrader(Strategy):
                 self.submit_order(order) 
                 self.last_trade = "buy"
                 
-            elif sentiment == "negative" and probability > .85: 
+            elif sentiment == "negative" and probability > .90: 
                 if self.last_trade == "buy": 
                     self.sell_all() 
                 
