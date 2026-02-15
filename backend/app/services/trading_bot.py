@@ -9,8 +9,8 @@ import os
 import sys
 import requests
 import json
-import gc # Garbage Collection (Critical for memory)
-import torch # To clear AI memory
+import gc 
+import torch 
 
 # Add the parent directory to sys.path so we can import from app
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -30,11 +30,14 @@ ALPACA_CREDS = {
 }
 
 class MLTrader(Strategy): 
-    def initialize(self, symbol:str="SPY", cash_at_risk:float=.5): 
+    # 1. Added tp_pct and sl_pct to initialize arguments
+    def initialize(self, symbol:str="SPY", cash_at_risk:float=.5, tp_pct:float=.10, sl_pct:float=.05): 
         self.symbol = symbol
         self.sleeptime = "24H" 
         self.last_trade = None 
         self.cash_at_risk = cash_at_risk
+        self.tp_pct = tp_pct  # Store Take Profit %
+        self.sl_pct = sl_pct  # Store Stop Loss %
         
     def position_sizing(self): 
         cash = self.get_cash() 
@@ -58,20 +61,16 @@ class MLTrader(Strategy):
             torch.cuda.empty_cache()
 
     def get_sentiment(self): 
-        # 1. Get Date Objects
         today, three_days_prior = self.get_dates()
         today_str = today.strftime('%Y-%m-%d')
-        
-        # 2. Construct Unique Cache Key (Fixes the symbol issue)
         cache_key = f"{self.symbol}_{today_str}"
         
         # --- DATABASE CHECK ---
-        # Try to find sentiment in the DB first
         db = SessionLocal()
         try:
             db_sentiment = db.query(NewsSentiment).filter(
                 NewsSentiment.symbol == self.symbol,
-                NewsSentiment.date == today.date() # Ensure we compare date objects
+                NewsSentiment.date == today.date() 
             ).first()
             
             if db_sentiment:
@@ -81,7 +80,6 @@ class MLTrader(Strategy):
             print(f"⚠️ DB Read Error: {e}")
         finally:
             db.close()
-        # ----------------------
 
         # --- DISK-BASED JSON CACHE (Fallback) ---
         cache_file = "news_cache.json"
@@ -94,10 +92,8 @@ class MLTrader(Strategy):
             except:
                 file_cache = {}
 
-        # Check using the new unique key
         if cache_key in file_cache:
             return file_cache[cache_key][0], file_cache[cache_key][1]
-        # -------------------------------
 
         # If not in DB or JSON, fetch from API
         print(f"qv Fetching new data for {self.symbol}...")
@@ -129,7 +125,6 @@ class MLTrader(Strategy):
         except Exception as e:
             print(f"⚠️ News Error: {e}")
 
-        # Run AI
         probability, sentiment = estimate_sentiment(final_news)
         
         # --- SAVE TO DATABASE ---
@@ -149,7 +144,6 @@ class MLTrader(Strategy):
             db.rollback()
         finally:
             db.close()
-        # ------------------------
 
         # --- SAVE TO JSON CACHE ---
         file_cache[cache_key] = [probability, sentiment]
@@ -169,18 +163,18 @@ class MLTrader(Strategy):
         print(f"📊 {self.symbol} Sentiment: {sentiment} ({probability:.2f})")
 
         if cash > last_price: 
-            # Changed threshold from .999 to .85 so it actually trades
             if sentiment == "positive" and probability > .85: 
                 if self.last_trade == "sell": 
                     self.sell_all() 
                 
+                # 2. Use self.tp_pct and self.sl_pct for Buy Order
                 order = self.create_order(
                     self.symbol, 
                     quantity, 
                     "buy", 
                     type="bracket", 
-                    take_profit_price=last_price*1.20, 
-                    stop_loss_price=last_price*.95
+                    take_profit_price=last_price * (1 + self.tp_pct), 
+                    stop_loss_price=last_price * (1 - self.sl_pct)
                 )
                 self.submit_order(order) 
                 self.last_trade = "buy"
@@ -189,18 +183,19 @@ class MLTrader(Strategy):
                 if self.last_trade == "buy": 
                     self.sell_all() 
                 
+                # 3. Use self.tp_pct and self.sl_pct for Short Order
+                # Note: For shorts, TP is lower than entry, SL is higher
                 order = self.create_order(
                     self.symbol, 
                     quantity, 
                     "sell", 
                     type="bracket", 
-                    take_profit_price=last_price*.8, 
-                    stop_loss_price=last_price*1.05
+                    take_profit_price=last_price * (1 - self.tp_pct), 
+                    stop_loss_price=last_price * (1 + self.sl_pct)
                 )
                 self.submit_order(order) 
                 self.last_trade = "sell"
         
-        # CRITICAL: Clean memory to prevent crashing
         self.cleanup_memory()
 
 # --- RUNNER ---
@@ -208,17 +203,34 @@ if __name__ == "__main__":
     start_date = datetime(2024,1,1)
     end_date = datetime(2025,12,31) 
     
-    # You can change "SPY" to "AAPL" or "NVDA" here
+    # 4. SETTINGS - Change these to adjust strategy behavior
     symbol = "SPY" 
+    cash_at_risk = 0.5  # 5% of available cash per trade
+    take_profit = 0.10  # 10% gain
+    stop_loss = 0.06    # 4% loss
 
     broker = Alpaca(ALPACA_CREDS) 
-    strategy = MLTrader(name='mlstrat', broker=broker, 
-                        parameters={"symbol": symbol, 
-                                    "cash_at_risk":.5})
+    
+    # 5. Pass parameters dictionary to MLTrader
+    strategy = MLTrader(
+        name='mlstrat', 
+        broker=broker, 
+        parameters={
+            "symbol": symbol, 
+            "cash_at_risk": cash_at_risk,
+            "tp_pct": take_profit,
+            "sl_pct": stop_loss
+        }
+    )
     
     strategy.backtest(
         YahooDataBacktesting, 
         start_date, 
         end_date, 
-        parameters={"symbol": symbol, "cash_at_risk":.5}
+        parameters={
+            "symbol": symbol, 
+            "cash_at_risk": cash_at_risk,
+            "tp_pct": take_profit,
+            "sl_pct": stop_loss
+        }
     )
