@@ -1,8 +1,11 @@
 # backend/app/main.py
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from huggingface_hub import login
+
 from app.core.config import settings
 from app.routers import settings as settings_router, trades as trades_router
 from app.core.database import SessionLocal
@@ -22,7 +25,15 @@ def scheduled_market_update():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. RUN BACKFILLER ON STARTUP
+    # 1. HUGGING FACE LOGIN
+    hf_token = os.getenv("HF_TOKEN")
+    if hf_token:
+        print("🤗 Hugging Face: Logging in...")
+        login(token=hf_token)
+    else:
+        print("⚠️ Hugging Face: No token found (HF_TOKEN). Rate limits may apply.")
+
+    # 2. RUN BACKFILLER ON STARTUP
     print("🚀 App Startup: Running data gap filler...")
     db = SessionLocal()
     try:
@@ -32,7 +43,7 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
 
-    # 2. START THE REGULAR SCHEDULED UPDATER
+    # 3. START THE REGULAR SCHEDULED UPDATER
     print("⏰ Starting Scheduler...")
     scheduler.add_job(
         scheduled_market_update,

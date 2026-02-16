@@ -106,11 +106,14 @@ A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strateg
 
 ```
 # .env
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=secretpassword
-POSTGRES_DB=skyrocket_prod
-ALPACA_API_KEY=your_key_here
-ALPACA_SECRET_KEY=your_secret_here
+POSTGRES_USER=
+POSTGRES_PASSWORD=
+POSTGRES_DB=
+ALPHA_VANTAGE_API_KEY=""
+ALPACA_API_KEY=""
+ALPACA_SECRET_KEY=""
+ALPACA_BASE_URL=""
+HF_TOKEN=""
 ```
 
 ## 2.2 - Deployment

@@ -11,6 +11,7 @@ aiohttp
 lumibot
 alpaca-py
 alpha-vantage
+huggingface_hub
 yfinance
 ccxt
 quantstats-lumi
