@@ -2,13 +2,24 @@
 import os
 import sys
 from lumibot.brokers import Alpaca
-from trading_bot import MLTrader, ALPACA_CREDS # Import your strategy and credentials
+from trading_bot import MLTrader
 
 # Add parent directories to path so we can import 'app'
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from app.core.database import SessionLocal
 from app.models.settings import GlobalSettings, Watchlist
+
+# --- CONFIGURATION ---
+API_KEY = os.getenv("ALPACA_API_KEY")
+API_SECRET = os.getenv("ALPACA_SECRET_KEY")
+BASE_URL = os.getenv("ALPACA_BASE_URL")
+
+ALPACA_CREDS = {
+    "API_KEY":API_KEY, 
+    "API_SECRET": API_SECRET, 
+    "PAPER": True
+}
 
 def run_live_trading():
     # 1. FETCH SETTINGS FROM DB
