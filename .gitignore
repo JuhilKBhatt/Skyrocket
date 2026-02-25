@@ -6,3 +6,4 @@ backend/app/.DS_Store
 .DS_Store
 .env
 backend/app/services/news_cache.json
+backend/news_cache.json
