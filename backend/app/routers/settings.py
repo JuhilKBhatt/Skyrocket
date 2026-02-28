@@ -2,13 +2,30 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
-from app.core.database import get_db
+
+from app.core.database import get_db, SessionLocal
 from app.models.settings import Watchlist, GlobalSettings
 from app.schemas import WatchlistCreate, Watchlist as WatchlistSchema
 from app.schemas import GlobalSettingsUpdate, GlobalSettings as GlobalSettingsSchema
-from app.services.market_data import fetch_and_store_history
+
+# Import the new initialization function
+from app.services.market_data import initial_seed_history
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+def seed_new_ticker_background(ticker: str):
+    """
+    Creates a dedicated database session for the background task.
+    This prevents FastAPI from closing the connection while yfinance is still downloading.
+    """
+    db = SessionLocal()
+    try:
+        initial_seed_history(ticker, db)
+    except Exception as e:
+        print(f"❌ Background sync failed for {ticker}: {e}")
+    finally:
+        db.close()
+
 
 # WATCHLIST ENDPOINTS
 @router.get("/watchlist", response_model=List[WatchlistSchema])
@@ -27,8 +44,8 @@ def add_company(company: WatchlistCreate, background_tasks: BackgroundTasks, db:
     db.commit()
     db.refresh(new_item)
 
-    # Fetch historical data in background
-    background_tasks.add_task(fetch_and_store_history, new_item.ticker, db)
+    # Trigger the background task with its own safe DB session manager
+    background_tasks.add_task(seed_new_ticker_background, new_item.ticker)
 
     return new_item
 

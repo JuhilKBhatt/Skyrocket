@@ -56,7 +56,7 @@ def stop_trading_bot():
 
 def scheduled_market_update():
     """Wrapper to create a DB session for the scheduled task"""
-    print("⏰ Scheduler: Triggering market data update...")
+    print("⏰ Scheduler: Triggering 1-minute market data update...")
     db = SessionLocal()
     try:
         update_all_watchlists(db)
@@ -86,7 +86,7 @@ async def lifespan(app: FastAPI):
     # 3. SCHEDULE MARKET HOURS (New York Time)
     ny_tz = timezone('America/New_York')
     
-    # Start at 9:30 AM ET (Mon-Fri)
+    # Start bot at 9:30 AM ET (Mon-Fri)
     scheduler.add_job(
         start_trading_bot, 
         'cron', 
@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
         id='bot_start'
     )
 
-    # Stop at 4:00 PM ET (Mon-Fri)
+    # Stop bot at 4:00 PM ET (Mon-Fri)
     scheduler.add_job(
         stop_trading_bot, 
         'cron', 
@@ -121,15 +121,45 @@ async def lifespan(app: FastAPI):
     else:
         print("💤 Market is CLOSED. Bot scheduled for next open.")
 
-    # 5. START DATA UPDATER SCHEDULER
-    print("⏰ Starting Scheduler...")
+    # 5. START DATA UPDATER SCHEDULER (Every 1 Minute during Market Hours)
+    print("⏰ Starting 1-Minute Data Scheduler...")
+    
+    # Run from 9:30 AM to 9:59 AM
     scheduler.add_job(
         scheduled_market_update,
         'cron',
-        minute='0,30',
-        id='market_update',
+        day_of_week='mon-fri',
+        hour=9,
+        minute='30-59',
+        timezone=ny_tz,
+        id='market_update_morning',
         replace_existing=True
     )
+    
+    # Run from 10:00 AM to 3:59 PM
+    scheduler.add_job(
+        scheduled_market_update,
+        'cron',
+        day_of_week='mon-fri',
+        hour='10-15',
+        minute='*',
+        timezone=ny_tz,
+        id='market_update_day',
+        replace_existing=True
+    )
+    
+    # Final fetch at exactly 4:00 PM to get the closing candle
+    scheduler.add_job(
+        scheduled_market_update,
+        'cron',
+        day_of_week='mon-fri',
+        hour=16,
+        minute=0,
+        timezone=ny_tz,
+        id='market_update_close',
+        replace_existing=True
+    )
+
     scheduler.start()
     
     yield # App runs here

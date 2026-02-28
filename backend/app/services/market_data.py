@@ -1,100 +1,188 @@
 # backend/app/services/market_data.py
-import os
+import pandas as pd
+import yfinance as yf
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from app.models.market_data import MarketCandle
 from app.models.settings import Watchlist
-from alpaca.data import StockHistoricalDataClient, TimeFrame, TimeFrameUnit, StockBarsRequest
 
-# Load keys from environment
-API_KEY = os.getenv("ALPACA_API_KEY")
-SECRET_KEY = os.getenv("ALPACA_SECRET_KEY")
+# Map our internal string representation to Pandas resample rules
+TIMEFRAMES = {
+    "1m": "1min",
+    "5m": "5min",
+    "15m": "15min",
+    "30m": "30min",
+    "1h": "1h",
+    "4h": "4h",
+    "1d": "1D"
+}
 
-THIRTY_MIN = TimeFrame(30, TimeFrameUnit.Minute)
+# yfinance lookback limits per interval
+YF_MAX_PERIODS = {
+    "1m": "7d",
+    "5m": "60d",
+    "15m": "60d",
+    "30m": "60d",
+    "1h": "730d",
+    "4h": "730d",
+    "1d": "max"
+}
 
-client = StockHistoricalDataClient(API_KEY, SECRET_KEY)
+def _upsert_candles(db: Session, candles_data: list, ticker: str, timeframe: str):
+    """Helper method to handle the database upsert logic."""
+    if not candles_data:
+        return
 
-def fetch_and_store_history(ticker: str, db: Session, timeframe=THIRTY_MIN, days_back=1825):
-    print(f"📥 Fetching {ticker} via Alpaca ({timeframe.value})...")
-    
-    start_time = datetime.now() - timedelta(days=days_back)
-    
-    request_params = StockBarsRequest(
-        symbol_or_symbols=ticker,
-        timeframe=timeframe,
-        start=start_time
+    stmt = insert(MarketCandle).values(candles_data)
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_candle",
+        set_={
+            "open": stmt.excluded.open,
+            "high": stmt.excluded.high,
+            "low": stmt.excluded.low,
+            "close": stmt.excluded.close,
+            "volume": stmt.excluded.volume,
+        }
     )
+    db.execute(stmt)
+    db.commit()
+    print(f"✅ Upserted {len(candles_data)} {timeframe} bars for {ticker}.")
 
+
+def df_to_dict_list(df: pd.DataFrame, ticker: str, timeframe_str: str) -> list:
+    """Converts a Pandas DataFrame to a list of dicts for SQLAlchemy."""
+    candles = []
+    for timestamp, row in df.iterrows():
+        # Drop rows with NaN values that can occur during market closed hours in resampling
+        if pd.isna(row["Open"]):
+            continue
+            
+        candles.append({
+            "symbol": ticker,
+            "timestamp": timestamp.to_pydatetime().replace(tzinfo=None),
+            "open": float(row["Open"]),
+            "high": float(row["High"]),
+            "low": float(row["Low"]),
+            "close": float(row["Close"]),
+            "volume": int(row["Volume"]),
+            "timeframe": timeframe_str
+        })
+    return candles
+
+
+def resample_and_store(df_1m: pd.DataFrame, ticker: str, db: Session):
+    """Takes 1m DataFrame, resamples to higher timeframes, and stores them."""
+    if df_1m.empty:
+        return
+
+    # Pandas aggregation dictionary for OHLCV data
+    agg_dict = {
+        "Open": "first",
+        "High": "max",
+        "Low": "min",
+        "Close": "last",
+        "Volume": "sum"
+    }
+
+    # Iterate through all higher timeframes and resample
+    for tf_label, pandas_rule in TIMEFRAMES.items():
+        if tf_label == "1m":
+            continue # Already handled
+            
+        print(f"🔄 Resampling {ticker} 1m data into {tf_label}...")
+        
+        # Resample the data
+        resampled_df = df_1m.resample(pandas_rule).agg(agg_dict)
+        resampled_df.dropna(inplace=True) # Clean up empty periods (after hours, weekends)
+        
+        # Convert and store
+        candles_data = df_to_dict_list(resampled_df, ticker, tf_label)
+        _upsert_candles(db, candles_data, ticker, tf_label)
+
+
+def initial_seed_history(ticker: str, db: Session):
+    """Fetches max available history for all timeframes directly from yfinance."""
+    print(f"🆕 Initializing deep history for {ticker}...")
+    yf_ticker = yf.Ticker(ticker)
+
+    for tf_label in TIMEFRAMES.keys():
+        period = YF_MAX_PERIODS[tf_label]
+        print(f"📥 Seeding {ticker} {tf_label} (Period: {period})...")
+        try:
+            # yfinance expects interval in lowercase like '1m', '1d' etc. (matches our keys)
+            df = yf_ticker.history(period=period, interval=tf_label)
+            if not df.empty:
+                candles = df_to_dict_list(df, ticker, tf_label)
+                _upsert_candles(db, candles, ticker, tf_label)
+        except Exception as e:
+            print(f"❌ Error seeding {tf_label} for {ticker}: {e}")
+            db.rollback()
+
+
+def maintain_market_data(ticker: str, db: Session, period: str = "1d"):
+    """Regular maintenance: Fetches 1m data and propagates it upwards."""
+    print(f"📥 Fetching latest 1m data for {ticker} (Period: {period})...")
     try:
-        bars_obj = client.get_stock_bars(request_params)
-        if not bars_obj or bars_obj.df.empty:
+        yf_ticker = yf.Ticker(ticker)
+        df_1m = yf_ticker.history(period=period, interval="1m")
+        
+        if df_1m.empty:
+            print(f"⚠️ No new 1m data found for {ticker}.")
             return
 
-        bars = bars_obj.df
-        candles_data = []
-        for (symbol, timestamp), row in bars.iterrows():
-            candles_data.append({
-                "symbol": symbol,
-                "timestamp": timestamp.to_pydatetime().replace(tzinfo=None),
-                "open": float(row["open"]),
-                "high": float(row["high"]),
-                "low": float(row["low"]),
-                "close": float(row["close"]),
-                "volume": int(row["volume"]),
-                "timeframe": timeframe.value
-            })
+        # 1. Store the 1m base data
+        candles_1m = df_to_dict_list(df_1m, ticker, "1m")
+        _upsert_candles(db, candles_1m, ticker, "1m")
 
-        if candles_data:
-            stmt = insert(MarketCandle).values(candles_data)
-            stmt = stmt.on_conflict_do_update(
-                constraint="uq_candle",
-                set_={
-                    "open": stmt.excluded.open,
-                    "high": stmt.excluded.high,
-                    "low": stmt.excluded.low,
-                    "close": stmt.excluded.close,
-                    "volume": stmt.excluded.volume,
-                }
-            )
-            db.execute(stmt)
-            db.commit()
-            print(f"✅ Synced {len(candles_data)} Alpaca bars for {ticker}.")
+        # 2. Resample and store all higher timeframes using the 1m data
+        resample_and_store(df_1m, ticker, db)
 
     except Exception as e:
-        print(f"❌ Alpaca Error for {ticker}: {e}")
+        print(f"❌ Maintenance error for {ticker}: {e}")
         db.rollback()
 
+
 def update_all_watchlists(db: Session):
-    """Regular update loop used by the scheduler."""
+    """Regular update loop used by the scheduler (runs every few minutes)."""
     active_companies = db.query(Watchlist).filter(Watchlist.is_active == True).all()
     for company in active_companies:
-        # Fetch last 1 day of 30-minute data to ensure continuity
-        fetch_and_store_history(company.ticker, db, timeframe=THIRTY_MIN, days_back=1)
+        # Fetch the last 1 day of 1m data and resample upward
+        maintain_market_data(company.ticker, db, period="1d")
+
 
 def backfill_missing_candles(db: Session):
-    """Runs on startup to fill gaps caused by downtime."""
+    """Runs on startup to catch up on data missed during downtime."""
     print("🔍 Checking for data gaps since last shutdown...")
     active_companies = db.query(Watchlist).filter(Watchlist.is_active == True).all()
     
     for company in active_companies:
-        last_candle_ts = db.query(func.max(MarketCandle.timestamp)).filter(
+        # We only check the 1m timeframe. Because we resample, 
+        # if 1m is up to date, the higher timeframes will be too.
+        last_1m_ts = db.query(func.max(MarketCandle.timestamp)).filter(
             MarketCandle.symbol == company.ticker,
-            MarketCandle.timeframe == THIRTY_MIN.value
+            MarketCandle.timeframe == "1m"
         ).scalar()
 
-        if last_candle_ts:
-            last_candle_ts = last_candle_ts.replace(tzinfo=None)
-            delta = datetime.now() - last_candle_ts
+        if not last_1m_ts:
+            # No data exists at all. Do a full historical seed.
+            initial_seed_history(company.ticker, db)
+            continue
+
+        last_1m_ts = last_1m_ts.replace(tzinfo=None)
+        delta = datetime.now() - last_1m_ts
+        minutes_offline = delta.total_seconds() / 60
+
+        if minutes_offline > 1:
+            days_offline = delta.days + 1
             
-            # If gap is > 30 mins, fetch enough history to cover it
-            if delta.total_seconds() > 1800:
-                days_to_fetch = delta.days + 1
-                print(f"⏳ Backfilling {company.ticker} ({days_to_fetch} days needed)...")
-                fetch_and_store_history(company.ticker, db, timeframe=THIRTY_MIN, days_back=days_to_fetch)
-            else:
-                print(f"✅ {company.ticker} is up-to-date.")
+            # Clamp the backfill to yfinance's 7-day 1m limit
+            if days_offline > 7:
+                print(f"⚠️ {company.ticker} was offline for {days_offline} days. Capping 1m backfill to 7 days due to yfinance limits.")
+                days_offline = 7
+                
+            print(f"⏳ Backfilling {company.ticker} via 1m resample ({days_offline} days needed)...")
+            maintain_market_data(company.ticker, db, period=f"{days_offline}d")
         else:
-            print(f"🆕 No data for {company.ticker}. Performing initial 5-year sync...")
-            fetch_and_store_history(company.ticker, db, timeframe=THIRTY_MIN, days_back=1825)
+            print(f"✅ {company.ticker} is completely up-to-date.")
