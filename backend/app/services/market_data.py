@@ -52,16 +52,22 @@ def _upsert_candles(db: Session, candles_data: list, ticker: str, timeframe: str
 
 
 def df_to_dict_list(df: pd.DataFrame, ticker: str, timeframe_str: str) -> list:
-    """Converts a Pandas DataFrame to a list of dicts for SQLAlchemy."""
+    """Converts a Pandas DataFrame to a list of dicts safely handling Timezones."""
     candles = []
     for timestamp, row in df.iterrows():
-        # Drop rows with NaN values that can occur during market closed hours in resampling
+        # Drop rows with NaN values (after-hours gaps in higher timeframes)
         if pd.isna(row["Open"]):
             continue
             
+        # CRITICAL FIX: Convert yfinance's local NY timezone to UTC before saving to DB
+        if timestamp.tzinfo is not None:
+            utc_timestamp = timestamp.tz_convert('UTC').tz_localize(None)
+        else:
+            utc_timestamp = timestamp
+            
         candles.append({
             "symbol": ticker,
-            "timestamp": timestamp.to_pydatetime().replace(tzinfo=None),
+            "timestamp": utc_timestamp,
             "open": float(row["Open"]),
             "high": float(row["High"]),
             "low": float(row["Low"]),
@@ -93,11 +99,12 @@ def resample_and_store(df_1m: pd.DataFrame, ticker: str, db: Session):
             
         print(f"🔄 Resampling {ticker} 1m data into {tf_label}...")
         
-        # Resample the data
+        # We resample BEFORE converting to UTC. This ensures '1D' and '1h' 
+        # boundaries align with NY Market Open/Close, not Midnight UTC.
         resampled_df = df_1m.resample(pandas_rule).agg(agg_dict)
-        resampled_df.dropna(inplace=True) # Clean up empty periods (after hours, weekends)
+        resampled_df.dropna(inplace=True) 
         
-        # Convert and store
+        # Convert to dictionary (which safely converts to UTC) and store
         candles_data = df_to_dict_list(resampled_df, ticker, tf_label)
         _upsert_candles(db, candles_data, ticker, tf_label)
 
@@ -111,7 +118,6 @@ def initial_seed_history(ticker: str, db: Session):
         period = YF_MAX_PERIODS[tf_label]
         print(f"📥 Seeding {ticker} {tf_label} (Period: {period})...")
         try:
-            # yfinance expects interval in lowercase like '1m', '1d' etc. (matches our keys)
             df = yf_ticker.history(period=period, interval=tf_label)
             if not df.empty:
                 candles = df_to_dict_list(df, ticker, tf_label)
@@ -145,10 +151,10 @@ def maintain_market_data(ticker: str, db: Session, period: str = "1d"):
 
 
 def update_all_watchlists(db: Session):
-    """Regular update loop used by the scheduler (runs every few minutes)."""
+    """Regular update loop used by the scheduler (runs every minute)."""
     active_companies = db.query(Watchlist).filter(Watchlist.is_active == True).all()
     for company in active_companies:
-        # Fetch the last 1 day of 1m data and resample upward
+        # Fetch the last 1 day of 1m data to ensure no overlapping gaps
         maintain_market_data(company.ticker, db, period="1d")
 
 
@@ -158,20 +164,18 @@ def backfill_missing_candles(db: Session):
     active_companies = db.query(Watchlist).filter(Watchlist.is_active == True).all()
     
     for company in active_companies:
-        # We only check the 1m timeframe. Because we resample, 
-        # if 1m is up to date, the higher timeframes will be too.
+        # Check 1m timeframe. Higher timeframes auto-build from 1m.
         last_1m_ts = db.query(func.max(MarketCandle.timestamp)).filter(
             MarketCandle.symbol == company.ticker,
             MarketCandle.timeframe == "1m"
         ).scalar()
 
         if not last_1m_ts:
-            # No data exists at all. Do a full historical seed.
             initial_seed_history(company.ticker, db)
             continue
 
         last_1m_ts = last_1m_ts.replace(tzinfo=None)
-        delta = datetime.now() - last_1m_ts
+        delta = datetime.utcnow() - last_1m_ts
         minutes_offline = delta.total_seconds() / 60
 
         if minutes_offline > 1:
