@@ -6,7 +6,7 @@
 
 ## 1.1 - Description
 
-A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strategies, one AI-driven news sentiment model, and one general LLM reasoning layer independently vote on Buy / No Buy / Sell / (If Buy then Hold) decisions.
+Trading Bot designed on 15m candle for bitcoin:USD
 
 ## 1.2 - Tech Stack
 
@@ -17,21 +17,17 @@ A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strateg
 
 ### 1.2.2 - Backend (Python)
 
-* Runs Algorithm Models ( Momentum, Mean Reversion, Volatility Breakout )
+* Calculates Trade ( Momentum, Mean Reversion, Volatility Breakout )
 * Talks to API
-* Talk to Frontend
+* Talk to Frontend - Settings Only
 
 ### 1.2.3 - Database (PostgreSQL)
 
-* Algo Models
-* Trades Model
-* Trade Success/Fail/Loss
+* Market Data
 
 ### 1.2.4 - API
 
 * Alpaca - Places Trades
-* Alpha Vantage - News, Historic & Real Time Data
-* Gemini - News & General LLM
 
 ## 1.3 - Logic Flow Chart
 
