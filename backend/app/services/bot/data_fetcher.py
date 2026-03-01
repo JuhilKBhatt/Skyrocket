@@ -1,6 +1,6 @@
 # backend/app/services/bot/data_fetcher.py
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from alpaca.data.historical import CryptoHistoricalDataClient
 from alpaca.data.requests import CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
@@ -28,7 +28,7 @@ def get_latest_data(symbol: str) -> pd.DataFrame:
     request_params = CryptoBarsRequest(
         symbol_or_symbols=symbol,
         timeframe=TimeFrame(15, TimeFrameUnit.Minute),
-        start=datetime.utcnow() - timedelta(days=2) # Fetch enough history to smooth HA
+        start=datetime.now(timezone.utc) - timedelta(days=2) # Fetch enough history to smooth HA
     )
     
     bars = data_client.get_crypto_bars(request_params)
