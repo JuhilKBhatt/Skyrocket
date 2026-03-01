@@ -2,7 +2,7 @@
 import os
 import sys
 from lumibot.brokers import Alpaca
-from trading_bot import MLTrader
+from backend.app.services.bot.core.trading_bot import MLTrader
 
 # Add parent directories to path so we can import 'app'
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

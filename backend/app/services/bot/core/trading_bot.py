@@ -1,4 +1,4 @@
-# backend/app/services/trading_bot.py
+# backend/app/services/bot/core/trading_bot.py
 from lumibot.brokers import Alpaca
 from lumibot.backtesting import YahooDataBacktesting
 from lumibot.strategies.strategy import Strategy
