@@ -1,85 +1,142 @@
 # backend/app/services/bot/backtester.py
-import yfinance as yf
 import pandas as pd
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 
-# Import your exact live strategy logic!
+# Alpaca Imports
+from alpaca.data.historical import CryptoHistoricalDataClient
+from alpaca.data.requests import CryptoBarsRequest
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+
+# Project Imports
+from app.core.config import settings
 from state_manager import StrategyState
 from strategy_logic import check_for_signals
 
 # --- BACKTEST PARAMETERS ---
-SYMBOL = "BTC-USD"  # yfinance format
-TIMEFRAME = "15m"
-DAYS_BACK = 59      # yfinance max for 15m is 60 days
+SYMBOL = "BTC/USD"  # Changed to Alpaca's crypto format
+TIMEFRAME_MINS = 15
+DAYS_BACK = 60      # Alpaca doesn't have the strict 60-day limit for 15m like yfinance, you can increase this!
 MAX_RISK_PCT = 0.5
 RR_RATIO = 2.0
 INITIAL_CAPITAL = 1000.0
-TRADE_RISK_PCT = 0.02  # Risk 2% of capital per trade
+TRADE_RISK_PCT = 0.02  
+
+# --- TRAILING STOP PARAMETERS ---
+USE_TRAILING = True
+TRAIL_START_R = 1.0   
+TRAIL_OFFSET_R = 0.5  
+
+# Initialize Alpaca Client using your config credentials
+data_client = CryptoHistoricalDataClient(settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY)
 
 def calculate_heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
-    """Replicates the data_fetcher.py HA math"""
+    """Matches the exact lowercase column format returned by Alpaca."""
     ha_df = df.copy()
-    ha_df['HA_Close'] = (df['Open'] + df['High'] + df['Low'] + df['Close']) / 4
+    ha_df['HA_Close'] = (df['open'] + df['high'] + df['low'] + df['close']) / 4
     
-    ha_open = [df['Open'].iloc[0]]
+    ha_open = [df['open'].iloc[0]]
     for i in range(1, len(df)):
         ha_open.append((ha_open[i-1] + ha_df['HA_Close'].iloc[i-1]) / 2)
     ha_df['HA_Open'] = ha_open
     
-    ha_df['HA_High'] = ha_df[['High', 'HA_Open', 'HA_Close']].max(axis=1)
-    ha_df['HA_Low'] = ha_df[['Low', 'HA_Open', 'HA_Close']].min(axis=1)
+    ha_df['HA_High'] = ha_df[['high', 'HA_Open', 'HA_Close']].max(axis=1)
+    ha_df['HA_Low'] = ha_df[['low', 'HA_Open', 'HA_Close']].min(axis=1)
     return ha_df
 
 def run_backtest():
-    print(f"📥 Fetching {DAYS_BACK} days of {TIMEFRAME} data for {SYMBOL}...")
+    print(f"📥 Fetching {DAYS_BACK} days of {TIMEFRAME_MINS}m data for {SYMBOL} from Alpaca...")
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=DAYS_BACK)
     
-    raw_df = yf.download(SYMBOL, start=start_date, end=end_date, interval=TIMEFRAME, progress=False)
-    if raw_df.empty:
-        print("❌ Failed to fetch data.")
+    request_params = CryptoBarsRequest(
+        symbol_or_symbols=SYMBOL,
+        timeframe=TimeFrame(TIMEFRAME_MINS, TimeFrameUnit.Minute),
+        start=start_date,
+        end=end_date
+    )
+    
+    try:
+        bars = data_client.get_crypto_bars(request_params)
+        raw_df = bars.df
+        
+        if raw_df.empty:
+            print("❌ Alpaca returned empty data.")
+            return
+            
+    except Exception as e:
+        print(f"❌ Failed to fetch data from Alpaca: {e}")
         return
 
-    # Flatten yfinance multi-index if necessary
-    if isinstance(raw_df.columns, pd.MultiIndex):
-        raw_df.columns = raw_df.columns.droplevel(1)
+    # Alpaca returns a MultiIndex (symbol, timestamp). We drop the symbol to easily iterate by time.
+    if isinstance(raw_df.index, pd.MultiIndex):
+        raw_df = raw_df.reset_index(level=0, drop=True)
 
     df = calculate_heikin_ashi(raw_df)
     
     bot_state = StrategyState()
     
-    # Tracking Variables
     capital = INITIAL_CAPITAL
     open_trade = None
     trade_history = []
     
     print("🤖 Simulating Strategy...")
 
-    # Loop through history candle by candle
+    # WARMUP COUNTER: Skip trading for the first 100 candles to let HA math stabilize
+    warmup_candles = 100
+    current_candle = 0
+
     for timestamp, row in df.iterrows():
-        # Standardize dictionary keys to match your live bot format
+        current_candle += 1
+        
+        # Note: Alpaca column names are lowercase ('open', 'high', etc.)
         candle = {
-            'open': row['Open'], 'high': row['High'], 'low': row['Low'], 'close': row['Close'],
+            'open': row['open'], 'high': row['high'], 'low': row['low'], 'close': row['close'],
             'HA_Open': row['HA_Open'], 'HA_Close': row['HA_Close']
         }
 
-        # 1. Manage Open Trade (Check if SL or TP hit)
+        # 1. Manage Open Trade & TRAILING STOP LOGIC
         if open_trade:
-            # Check for Stop Loss or Take Profit
             hit_sl = False
             hit_tp = False
-            
+            exit_price = 0
+
             if open_trade['side'] == 'LONG':
-                if candle['low'] <= open_trade['sl']: hit_sl = True
-                elif candle['high'] >= open_trade['tp']: hit_tp = True
+                if candle['high'] > open_trade['high_watermark']:
+                    open_trade['high_watermark'] = candle['high']
+                    
+                    if USE_TRAILING and (open_trade['high_watermark'] >= open_trade['entry'] + open_trade['trail_start']):
+                        new_sl = open_trade['high_watermark'] - open_trade['trail_offset']
+                        if new_sl > open_trade['sl']:
+                            open_trade['sl'] = new_sl 
+
+                if candle['low'] <= open_trade['sl']: 
+                    hit_sl = True
+                    exit_price = open_trade['sl']
+                elif candle['high'] >= open_trade['tp']: 
+                    hit_tp = True
+                    exit_price = open_trade['tp']
+
             elif open_trade['side'] == 'SHORT':
-                if candle['high'] >= open_trade['sl']: hit_sl = True
-                elif candle['low'] <= open_trade['tp']: hit_tp = True
+                if candle['low'] < open_trade['low_watermark']:
+                    open_trade['low_watermark'] = candle['low']
+                    
+                    if USE_TRAILING and (open_trade['low_watermark'] <= open_trade['entry'] - open_trade['trail_start']):
+                        new_sl = open_trade['low_watermark'] + open_trade['trail_offset']
+                        if new_sl < open_trade['sl']:
+                            open_trade['sl'] = new_sl 
+
+                if candle['high'] >= open_trade['sl']: 
+                    hit_sl = True
+                    exit_price = open_trade['sl']
+                elif candle['low'] <= open_trade['tp']: 
+                    hit_tp = True
+                    exit_price = open_trade['tp']
 
             if hit_sl or hit_tp:
-                exit_price = open_trade['sl'] if hit_sl else open_trade['tp']
-                
-                # Calculate Profit
                 if open_trade['side'] == 'LONG':
                     profit = (exit_price - open_trade['entry']) * open_trade['qty']
                 else:
@@ -91,27 +148,30 @@ def run_backtest():
                     'entry_time': open_trade['entry_time'],
                     'exit_time': timestamp,
                     'profit': profit,
-                    'result': 'WIN' if hit_tp else 'LOSS'
+                    'result': 'WIN' if profit > 0 else 'LOSS' 
                 })
-                open_trade = None # Trade closed
-            continue # Don't look for new setups while in a trade
+                open_trade = None 
+            continue 
 
         # 2. Update State
         bot_state.update_state(timestamp, candle)
 
-        # 3. Check Logic
+        # 3. Skip execution during HA warmup
+        if current_candle < warmup_candles:
+            continue
+
+        # 4. Check Logic
         signal = check_for_signals(bot_state, candle)
 
-        # 4. Execute Entry
+        # 5. Execute Entry
         if signal != "NONE":
             real_close = candle['close']
             
-            # Risk Calculation
             if signal == "LONG":
                 risk_amount = real_close - bot_state.ext_low
                 sl_price = bot_state.ext_low
                 tp_price = real_close + (risk_amount * RR_RATIO)
-            else: # SHORT
+            else: 
                 risk_amount = bot_state.ext_high - real_close
                 sl_price = bot_state.ext_high
                 tp_price = real_close - (risk_amount * RR_RATIO)
@@ -124,9 +184,7 @@ def run_backtest():
                 bot_state.is_outside_up = False
                 continue
 
-            # Position Sizing (Risking 2% of total capital)
-            dollars_at_risk = capital * TRADE_RISK_PCT
-            qty = dollars_at_risk / risk_amount
+            qty = (capital * TRADE_RISK_PCT) / risk_amount
             
             open_trade = {
                 'side': signal,
@@ -134,10 +192,13 @@ def run_backtest():
                 'sl': sl_price,
                 'tp': tp_price,
                 'qty': qty,
-                'entry_time': timestamp
+                'entry_time': timestamp,
+                'high_watermark': real_close,
+                'low_watermark': real_close,
+                'trail_start': risk_amount * TRAIL_START_R,
+                'trail_offset': risk_amount * TRAIL_OFFSET_R
             }
             
-            # Reset Trap
             bot_state.is_outside_down = False
             bot_state.is_outside_up = False
 
@@ -148,7 +209,7 @@ def run_backtest():
     total_return = ((capital - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100
 
     print("\n" + "="*40)
-    print("📊 BACKTEST RESULTS (60 Days)")
+    print(f"📊 BACKTEST RESULTS ({DAYS_BACK} Days)")
     print("="*40)
     print(f"Total Trades: {len(trade_history)}")
     print(f"Wins: {len(wins)} | Losses: {len(losses)}")
