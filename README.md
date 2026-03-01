@@ -137,11 +137,9 @@ Reset trap variables to False (isOutsideUp/Down = False).
 POSTGRES_USER=
 POSTGRES_PASSWORD=
 POSTGRES_DB=
-ALPHA_VANTAGE_API_KEY=""
 ALPACA_API_KEY=""
 ALPACA_SECRET_KEY=""
 ALPACA_BASE_URL=""
-HF_TOKEN=""
 ```
 
 ## 2.2 - Deployment
