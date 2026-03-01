@@ -13,7 +13,7 @@ TIMEFRAME = "15m"
 DAYS_BACK = 59      # yfinance max for 15m is 60 days
 MAX_RISK_PCT = 0.5
 RR_RATIO = 2.0
-INITIAL_CAPITAL = 10000.0
+INITIAL_CAPITAL = 1000.0
 TRADE_RISK_PCT = 0.02  # Risk 2% of capital per trade
 
 def calculate_heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
