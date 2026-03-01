@@ -2,7 +2,7 @@
 
 ---
 
-# 1.0 - Bot Design
+# 1.0 - Bot Design - Depreciated
 
 ## 1.1 - Description
 
@@ -35,68 +35,100 @@ A Voting Based Quant Algorithm Based Trading Bot. Three orthogonal quant strateg
 
 ## 1.3 - Logic Flow Chart
 
-**1. START: Data Integrity Check**
+🔄 The Main Loop (Runs every 15 minutes on candle close)
+1️⃣ Phase 1: 4-Hour Cycle Management
 
-* **Actions:** Check API Status & Delay, Database Connection, Frontend Connection.
-* **IF FAIL:** **→** **( End Operations: Send Email at Error )**
-* **IF SUCCESS:** **→** **Proceed to Step 2.**
+Check Time: Is it a new 4-Hour boundary? (e.g., 00:00, 04:00, 08:00, 12:00 UTC)
 
-**2. DECISION: US Market Open Or Closing Hour?**
+IF YES:
 
-* **IF NO:** **→** Loop back to **Data Integrity Check** .
-* **IF YES:** **→** **Proceed to Step 3** (Pass list of companies & trade details).
+Range_High = Highest price of the previous 4 hours.
 
-**3. PROCESS: Market Scan**
+Range_Low = Lowest price of the previous 4 hours.
 
-* **Filters:** Liquidity, Volatility, Volume, News & Data API Check.
-* **IF NO COMPANIES PASS:** **→** Loop back to **Data Integrity Check** .
-* **IF COMPANIES PASS:** **→** **Proceed to Step 4.**
+Reset Variables: isOutsideUp = False, isOutsideDown = False, ExtremeHigh = None, ExtremeLow = None.
 
-**4. PROCESS: Model Regime Detection**
+IF NO:
 
-* **Metrics:** Trend, Range, Volatility.
-* **→** **Proceed to Step 5.**
+Keep tracking the highest/lowest prices of the current 4H period in the background (to be used when the next 4H boundary hits).
 
-**5. DECISION: Which Regime?**
+2️⃣ Phase 2: Position Check
 
-* **Option A:** **→** **[ High Regime Models ]**
-* **Option B:** **→** **[ Normal Models ]**
-* **Option C:** **→** **[ Low Regime Models ]**
-* *(All 3 paths merge into Step 6)*
+Check Alpaca: Do we currently have an open trade?
 
-**6. PROCESS: Run Quant Algorithm**
+IF YES: Do nothing. Let Alpaca handle the Take Profit, Stop Loss, or Trailing Stop. (End loop).
 
-* **Inputs:** Quant Algorithm, News & LLM.
-* **Logic:**
-  * If New Trade Votes: BUY / NO.
-  * If Trade Placed: SELL / HOLD.
-* **→** **Proceed to Step 7.**
+IF NO: Proceed to Phase 3.
 
-**7. PROCESS: Double Gate Risk Check**
+3️⃣ Phase 3: Breakout Detection (Arming the Trap)
 
-* **Actions:** Add Stop Loss, Time to Live (TTL).
-* **Rules:** Max Trade 2% of balance but 5% stop loss.
-* **→** **Proceed to Step 8.**
+Check Upper Breakout:
 
-**8. PROCESS: Execute Trade**
+Did the Heikin Ashi (HA) Close just close ABOVE Range_High?
 
-* **Action:** Execute via API.
-* **→** **Proceed to Step 9.**
+IF YES: Set isOutsideUp = True and set isOutsideDown = False.
 
-**9. PROCESS: Dual Thread Monitoring**
+Check Lower Breakout:
 
-* **Thread A (Fast - Every 1s):** Check Price vs. Stop Loss / Take Profit.
+Did the Heikin Ashi (HA) Close just close BELOW Range_Low?
 
-  * *If Stop Hit:* **→** Trigger SELL immediately (Skip to Step 10).
-* **Thread B (Slow - Every 1m):** Check Regime Change & Sentiment.
+IF YES: Set isOutsideDown = True and set isOutsideUp = False.
 
-  * *Loop back to Step 4:* Verify if the original thesis (Regime) is still valid.
-  * *If Invalid:* **→** Trigger Exit.
+Track Extremes (Crucial for Stop Loss):
 
-**10. PROCESS: Attribution Analysis & Model Refine**
+If isOutsideUp == True: Keep tracking the absolute highest real price reached (ExtremeHigh).
 
-* **Analysis:** Meet Target? Entry/Exit Profit? Model/Vote Success/Fine/Fail? Slippage?
-* **→** **Big Loop Back to Step 1 (Data Integrity Check).**
+If isOutsideDown == True: Keep tracking the absolute lowest real price reached (ExtremeLow).
+
+4️⃣ Phase 4: Re-Entry & Momentum Check (Springing the Trap)
+
+Check LONG Conditions:
+
+Was the trap armed? (isOutsideDown == True)
+
+Did price snap back inside? (HA Close > Range_Low)
+
+Is momentum bullish? (HA Close > HA Open / Green HA Candle)
+
+If all 3 are YES ➡️ Proceed to Phase 5 for a LONG.
+
+Check SHORT Conditions:
+
+Was the trap armed? (isOutsideUp == True)
+
+Did price snap back inside? (HA Close < Range_High)
+
+Is momentum bearish? (HA Close < HA Open / Red HA Candle)
+
+If all 3 are YES ➡️ Proceed to Phase 5 for a SHORT.
+
+5️⃣ Phase 5: Risk Calculation & Execution
+
+Calculate Risk:
+
+Long: Risk = Current Real Close - ExtremeLow
+
+Short: Risk = ExtremeHigh - Current Real Close
+
+Risk % Filter Check:
+
+Risk % = (Risk / Current Real Close) * 100
+
+Is Risk % > Max Risk % (e.g., 0.5%)?
+
+IF YES: The breakout went too far, the Stop Loss is too wide. CANCEL TRADE. Reset trap variables to False.
+
+IF NO: Proceed to Execution.
+
+Send Bracket Order to Alpaca:
+
+Calculate Stop Loss (SL): ExtremeLow (Long) or ExtremeHigh (Short).
+
+Calculate Take Profit (TP): Entry Price ± (Risk * Reward Ratio).
+
+Submit a Bracket Order to Alpaca with the SL and TP. (Note: You will also program Alpaca's Trailing Stop parameters here).
+
+Reset trap variables to False (isOutsideUp/Down = False).
 
 # 2.0 - How to Run
 
