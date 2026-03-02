@@ -8,7 +8,6 @@ trading_client = TradingClient(settings.ALPACA_API_KEY, settings.ALPACA_SECRET_K
 
 def has_open_positions(symbol: str) -> bool:
     try:
-        # Alpaca uses 'BTCUSD' for positions, not 'BTC/USD'
         clean_symbol = symbol.replace("/", "")
         positions = trading_client.get_all_positions()
         for pos in positions:
@@ -17,7 +16,7 @@ def has_open_positions(symbol: str) -> bool:
         return False
     except Exception as e:
         print(f"Error checking positions: {e}")
-        return True # Default to True to prevent double entries
+        return True 
 
 def execute_trade(signal: str, current_real_price: float, state, db_settings, symbol: str):
     print(f"⚡ Executing {signal}...")
@@ -26,9 +25,7 @@ def execute_trade(signal: str, current_real_price: float, state, db_settings, sy
     max_risk_pct = db_settings.global_stop_loss_pct
     rr_ratio = db_settings.take_profit_pct / db_settings.global_stop_loss_pct if db_settings.global_stop_loss_pct > 0 else 2.0
     
-    # Static Qty for testing (Update this to calculate % of portfolio later)
-    quantity = 0.01 
-
+    # Calculate Risk Amounts
     if signal == "LONG":
         risk_amount = current_real_price - state.ext_low
         sl_price = state.ext_low
@@ -49,6 +46,25 @@ def execute_trade(signal: str, current_real_price: float, state, db_settings, sy
         print(f"❌ Cancelled: Stop Loss too wide ({risk_pct:.2f}% > {max_risk_pct}%)")
         return
 
+    # --- DYNAMIC POSITION SIZING ---
+    try:
+        account = trading_client.get_account()
+        buying_power = float(account.equity)
+        
+        # Max Allocation % (e.g. 50% of account)
+        alloc_pct = db_settings.max_trade_allocation_pct / 100.0
+        dollars_to_invest = buying_power * alloc_pct
+        
+        quantity = round(dollars_to_invest / current_real_price, 4)
+        
+        if quantity <= 0:
+            print("❌ Cancelled: Calculated quantity is 0 or negative.")
+            return
+            
+    except Exception as e:
+        print(f"❌ Failed to get account balance for sizing: {e}")
+        return
+
     req = MarketOrderRequest(
         symbol=symbol.replace("/", ""),
         qty=quantity,
@@ -61,9 +77,7 @@ def execute_trade(signal: str, current_real_price: float, state, db_settings, sy
 
     try:
         trading_client.submit_order(req)
-        print(f"✅ ORDER SUBMITTED: {side.name} @ {current_real_price:.2f} | SL: {sl_price:.2f} | TP: {tp_price:.2f}")
-        # Reset Trap
-        state.is_outside_down = False
-        state.is_outside_up = False
+        print(f"✅ ORDER SUBMITTED: {side.name} {quantity} {symbol} @ ${current_real_price:.2f}")
+        print(f"🎯 Take Profit: ${tp_price:.2f} | 🛡️ Stop Loss: ${sl_price:.2f}")
     except Exception as e:
-        print(f"❌ Alpaca Error: {e}")
+        print(f"❌ Alpaca Order Error: {e}")

@@ -112,7 +112,9 @@ def resample_and_store(df_1m: pd.DataFrame, ticker: str, db: Session):
 def initial_seed_history(ticker: str, db: Session):
     """Fetches max available history for all timeframes directly from yfinance."""
     print(f"🆕 Initializing deep history for {ticker}...")
-    yf_ticker = yf.Ticker(ticker)
+    
+    yf_symbol = ticker.replace("/", "-")
+    yf_ticker = yf.Ticker(yf_symbol)
 
     for tf_label in TIMEFRAMES.keys():
         period = YF_MAX_PERIODS[tf_label]
@@ -131,7 +133,9 @@ def maintain_market_data(ticker: str, db: Session, period: str = "1d"):
     """Regular maintenance: Fetches 1m data and propagates it upwards."""
     print(f"📥 Fetching latest 1m data for {ticker} (Period: {period})...")
     try:
-        yf_ticker = yf.Ticker(ticker)
+        yf_symbol = ticker.replace("/", "-")
+        yf_ticker = yf.Ticker(yf_symbol)
+        
         df_1m = yf_ticker.history(period=period, interval="1m")
         
         if df_1m.empty:

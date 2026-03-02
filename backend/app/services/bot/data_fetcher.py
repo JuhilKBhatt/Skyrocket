@@ -24,11 +24,10 @@ def calculate_heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
     return ha_df
 
 def get_latest_data(symbol: str) -> pd.DataFrame:
-    # Alpaca expects crypto symbols like 'BTC/USD'
     request_params = CryptoBarsRequest(
         symbol_or_symbols=symbol,
         timeframe=TimeFrame(15, TimeFrameUnit.Minute),
-        start=datetime.now(timezone.utc) - timedelta(days=2) # Fetch enough history to smooth HA
+        start=datetime.now(timezone.utc) - timedelta(days=4) 
     )
     
     bars = data_client.get_crypto_bars(request_params)

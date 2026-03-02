@@ -1,5 +1,6 @@
+// frontend/src/pages/SettingsPage.tsx
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, InputNumber, Typography, Button, Form, message } from 'antd';
+import { Card, Row, Col, InputNumber, Typography, Button, Form, message, Switch } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { CompanySettingsTable } from '../components/CompanySettingsTable';
 import { settingsApi } from '../services/settingsApi';
@@ -23,7 +24,8 @@ export const SettingsPage = () => {
         form.setFieldsValue({
             global_stop_loss_pct: data.global_stop_loss_pct,
             take_profit_pct: data.take_profit_pct,
-            max_trade_allocation_pct: data.max_trade_allocation_pct
+            max_trade_allocation_pct: data.max_trade_allocation_pct,
+            is_trading_enabled: data.is_trading_enabled // Reads value from Database
         });
       })
       .catch(() => {
@@ -35,9 +37,9 @@ export const SettingsPage = () => {
     try {
         setLoading(true);
         const values = form.getFieldsValue();
+        // Dynamically send the values (including the Switch state)
         const payload = {
-            ...values,
-            is_trading_enabled: true 
+            ...values
         };
         await settingsApi.updateGlobalSettings(payload);
         message.success("Global settings saved successfully!");
@@ -66,7 +68,20 @@ export const SettingsPage = () => {
       <Card title="Global Risk Parameters" style={{ marginBottom: 20 }}>
         <Form form={form} layout="vertical">
           <Row gutter={24}>
-            <Col span={8}>
+            {/* 1. THE NEW MASTER SWITCH */}
+            <Col span={6}>
+              <Form.Item 
+                name="is_trading_enabled"
+                label={<Text strong>Enable Live Trading</Text>} 
+                valuePropName="checked"
+                extra="Master switch to allow bot to trade."
+              >
+                <Switch checkedChildren="ON" unCheckedChildren="OFF" />
+              </Form.Item>
+            </Col>
+
+            {/* 2. STOP LOSS */}
+            <Col span={6}>
               <Form.Item 
                 name="global_stop_loss_pct"
                 label={<Text strong>Global Stop Loss (%)</Text>} 
@@ -81,7 +96,8 @@ export const SettingsPage = () => {
               </Form.Item>
             </Col>
             
-            <Col span={8}>
+            {/* 3. TAKE PROFIT */}
+            <Col span={6}>
               <Form.Item 
                 name="take_profit_pct"
                 label={<Text strong>Take Profit (%)</Text>} 
@@ -96,7 +112,8 @@ export const SettingsPage = () => {
               </Form.Item>
             </Col>
 
-            <Col span={8}>
+            {/* 4. MAX ALLOCATION */}
+            <Col span={6}>
               <Form.Item 
                 name="max_trade_allocation_pct"
                 label={<Text strong>Max Trade Allocation (%)</Text>} 
