@@ -27,6 +27,7 @@ services:
       - ALPACA_API_KEY=${ALPACA_API_KEY}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
       - ALPACA_BASE_URL=${ALPACA_BASE_URL}
+      - PYTHONUNBUFFERED=TRUE
     depends_on:
       - db
 
