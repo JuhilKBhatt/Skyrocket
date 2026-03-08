@@ -46,17 +46,9 @@ async def lifespan(app: FastAPI):
 PROJECT_NAME = os.getenv("PROJECT_NAME", "Skyrocket Trading Bot")
 app = FastAPI(title=PROJECT_NAME, lifespan=lifespan)
 
-origins = [
-    "http://localhost:5173", 
-    "http://localhost:80",   
-    "http://localhost",      
-    "http://127.0.0.1",
-    "*"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
