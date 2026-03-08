@@ -45,7 +45,7 @@ def add_company(company: WatchlistCreate, background_tasks: BackgroundTasks, db:
     db.refresh(new_item)
 
     # Trigger the background task with its own safe DB session manager
-    background_tasks.add_task(seed_new_ticker_background, new_item.ticker)
+    #background_tasks.add_task(seed_new_ticker_background, new_item.ticker)
 
     return new_item
 
