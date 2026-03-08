@@ -18,5 +18,5 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY . .
 
-# Run standard Uvicorn (or Gunicorn) for production
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run migrations and then standard Uvicorn for production
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
