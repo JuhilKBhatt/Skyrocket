@@ -130,7 +130,8 @@ def delete_data(config, env):
         run_command(["docker-compose", "-f", config["compose_file"], "up", "-d"])
     
     print("⏳ Waiting for DB to be ready...")
-    time.sleep(5)
+    # --- CHANGED FROM 5 to 15 SECONDS ---
+    time.sleep(15) 
     
     print("Mw🌱 Re-initializing Database Schema...")
     # Initialize alembic (apply migrations to the fresh DB)
