@@ -1,8 +1,10 @@
 # backend/app/services/bot/execution.py
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, TakeProfitRequest, StopLossRequest
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
 from app.core.config import settings
+from app.models.trade import Trade, TradeStatus
+from datetime import datetime, timezone
 
 trading_client = TradingClient(settings.ALPACA_API_KEY, settings.ALPACA_SECRET_KEY, paper=True)
 
@@ -18,7 +20,7 @@ def has_open_positions(symbol: str) -> bool:
         print(f"Error checking positions: {e}")
         return True 
 
-def execute_trade(signal: str, current_real_price: float, state, db_settings, symbol: str):
+def execute_trade(signal: str, current_real_price: float, state, db_settings, symbol: str, db_session):
     print(f"⚡ Executing {signal}...")
 
     # Extract dynamic risk from UI database
@@ -31,11 +33,13 @@ def execute_trade(signal: str, current_real_price: float, state, db_settings, sy
         sl_price = state.ext_low
         tp_price = current_real_price + (risk_amount * rr_ratio)
         side = OrderSide.BUY
+        db_side = "BUY"
     elif signal == "SHORT":
         risk_amount = state.ext_high - current_real_price
         sl_price = state.ext_high
         tp_price = current_real_price - (risk_amount * rr_ratio)
         side = OrderSide.SELL
+        db_side = "SELL"
     else:
         return
 
@@ -65,19 +69,41 @@ def execute_trade(signal: str, current_real_price: float, state, db_settings, sy
         print(f"❌ Failed to get account balance for sizing: {e}")
         return
 
+    # 1. Submit Market Order ONLY (No Bracket)
     req = MarketOrderRequest(
         symbol=symbol.replace("/", ""),
         qty=quantity,
         side=side,
-        time_in_force=TimeInForce.GTC,
-        order_class=OrderClass.BRACKET,
-        take_profit=TakeProfitRequest(limit_price=round(tp_price, 2)),
-        stop_loss=StopLossRequest(stop_price=round(sl_price, 2))
+        time_in_force=TimeInForce.GTC
     )
 
     try:
         trading_client.submit_order(req)
         print(f"✅ ORDER SUBMITTED: {side.name} {quantity} {symbol} @ ${current_real_price:.2f}")
-        print(f"🎯 Take Profit: ${tp_price:.2f} | 🛡️ Stop Loss: ${sl_price:.2f}")
+        print(f"🎯 Target TP: ${tp_price:.2f} | 🛡️ Target SL: ${sl_price:.2f}")
+        
+        # 2. Log Trade to Database for monitoring
+        new_trade = Trade(
+            symbol=symbol,
+            side=db_side,
+            quantity=quantity,
+            entry_price=current_real_price,
+            status=TradeStatus.OPEN,
+            strategy="HAFakeoutScalper"
+            # We will use 'pnl' and 'pnl_percent' columns to temporarily store our target SL/TP values 
+            # while the trade is open so the runner can monitor them. 
+            # (A cleaner approach would be adding dedicated sl_target/tp_target columns to the Trade model)
+        )
+        # Using PNL field to store TP and PNL_PERCENT to store SL targets temporarily
+        new_trade.pnl = tp_price 
+        new_trade.pnl_percent = sl_price
+
+        db_session.add(new_trade)
+        db_session.commit()
+
+        # Reset Trap
+        state.is_outside_down = False
+        state.is_outside_up = False
+
     except Exception as e:
         print(f"❌ Alpaca Order Error: {e}")
