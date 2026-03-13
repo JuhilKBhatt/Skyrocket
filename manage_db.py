@@ -119,22 +119,28 @@ def delete_data(config, env):
             print("❌ Operation cancelled.")
             return
 
-    print("fw💥 Stopping containers and removing volumes...")
+    print("💥 Stopping containers and removing volumes...")
     run_command(["docker-compose", "-f", config["compose_file"], "down", "-v"])
     
-    print("🔄 Restarting fresh containers...")
-    # For prod, we don't usually --build every restart, but for dev we do
+    print("🔄 Starting Database first...")
+    # Start ONLY the database so it can complete its internal tuning restarts
+    run_command(["docker-compose", "-f", config["compose_file"], "up", "-d", config["db_service"]])
+    
+    print("⏳ Waiting 15 seconds for DB to complete initial configuration...")
+    time.sleep(15) 
+    
+    print("🚀 Starting backend and frontend...")
+    # Now start the rest of the stack
     if env == "dev":
         run_command(["docker-compose", "-f", config["compose_file"], "up", "-d", "--build"])
     else:
         run_command(["docker-compose", "-f", config["compose_file"], "up", "-d"])
     
-    print("⏳ Waiting for DB to be ready...")
-    # --- CHANGED FROM 5 to 15 SECONDS ---
-    time.sleep(15) 
+    print("⏳ Waiting 5 seconds for backend to boot up...")
+    time.sleep(5)
     
-    print("Mw🌱 Re-initializing Database Schema...")
-    # Initialize alembic (apply migrations to the fresh DB)
+    print("🌱 Re-initializing Database Schema...")
+    # Initialize alembic
     run_command([
         "docker-compose", "-f", config["compose_file"], "exec", config["service_name"],
         "alembic", "upgrade", "head"
