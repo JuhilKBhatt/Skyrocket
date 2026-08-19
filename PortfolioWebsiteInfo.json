@@ -1,0 +1,14 @@
+{
+ "title": "Sky Rocket",
+ "description": "A python project that uses Machine Learning to predict the stock market trends and provide investment recommendations.",
+ "language": ["Python", "React+Vite"],
+ "liveDemo": "",
+ "images": [
+   ""
+ ],
+ "videoDemo": "",
+ "Priority": 1,
+ "type": "Solo",
+ "version": "Beta",
+ "Visibilty": true
+}
